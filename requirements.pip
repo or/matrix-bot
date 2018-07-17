@@ -1,0 +1,4 @@
+beautifulsoup4==4.6.0
+google-api-python-client==1.7.4
+matrix_client==0.3.2
+requests==2.18.4
