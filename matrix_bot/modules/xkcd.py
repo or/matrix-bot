@@ -23,6 +23,9 @@ class XkcdModule(MatrixBotModule):
         return None
 
     def process(self, client, event):
+        if event['type'] != 'm.room.message':
+            return
+
         room_id = event['room_id']
         sender_id = event['sender']
         content = event['content']
