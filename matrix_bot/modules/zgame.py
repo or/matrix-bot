@@ -251,6 +251,7 @@ class ZGameModule(MatrixBotModule):
 
             html_data = ZGameModule.convert_to_html(data)
 
+            self.save_game(p, room_id, game_id)
             self.quit_game(p)
 
             room.send_html(html_data)
