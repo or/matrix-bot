@@ -8,6 +8,7 @@ import time
 
 import requests
 
+sys.path.insert(0, "/Users/orrunge/lib/olm/python")
 from bs4 import BeautifulSoup
 from matrix_client.api import MatrixRequestError
 from matrix_client.client import MatrixClient
@@ -16,6 +17,17 @@ from matrix_client.room import Room
 
 from matrix_bot.modules.base import MatrixBotModule
 from matrix_bot import modules
+
+from olm.account import Account
+
+
+DEFAULT_KEY_NAME = b"default"
+
+def read_base64_file(filename):
+    """Read a base64 file, dropping any CR/LF characters"""
+    with open(filename, "rb") as f:
+        return f.read().replace(b"\r\n", b"")
+
 
 class MatrixBot:
     def __init__(self, config):
@@ -53,11 +65,28 @@ class MatrixBot:
         self.client.join_room(room_id)
 
 
+    def load_encryption_account_file(self, filename):
+        if not filename:
+            self.encryption_account = None
+            return
+
+        self.encryption_account = Account()
+
+        if not os.path.exists(filename):
+            self.encryption_account.create()
+            with open(filename, "wb") as f:
+                f.write(self.encryption_account.pickle(DEFAULT_KEY_NAME))
+
+        else:
+            self.encryption_account.unpickle(DEFAULT_KEY_NAME, read_base64_file(filename))
+
     def run(self):
         base_url = self.config['main']['base_url']
         user_id = self.config['main']['user_id']
         password = self.config['main']['password']
         device_id = self.config['main']['device_id']
+
+        self.load_encryption_account_file(self.config['main'].get('encryption_account_file'))
 
         self.client = MatrixClient(base_url=base_url)
         self.client.login(user_id, password, device_id=device_id)
