@@ -193,17 +193,17 @@ class ZGameModule(MatrixBotModule):
                         E.TD("this help")
                     ),
                     E.TR(
-                        E.TD("!zlist, !zl"),
+                        E.TD("!zlist"),
                         E.TD(""),
                         E.TD("list all installed games and their IDs")
                     ),
                     E.TR(
-                        E.TD("!zstart, !zs"),
+                        E.TD("!zstart"),
                         E.TD("<game-id>"),
                         E.TD("start a new session of game <game-id>, replaces the current session")
                     ),
                     E.TR(
-                        E.TD("!zsave"),
+                        E.TD("!zsave, !zs"),
                         E.TD("<name>\xa0[overwrite]"),
                         E.TD("save current session to <name>, if it already exists, then [overwrite] must be specified")
                     ),
@@ -227,7 +227,7 @@ class ZGameModule(MatrixBotModule):
             html_data = lxml.html.tostring(html, pretty_print=True).decode('utf-8')
             room.send_html(html_data)
 
-        elif command in ['!zstart', '!zs']:
+        elif command in ['!zstart']:
             if len(words) < 2:
                 room.send_text("Use: !zstart <game-id>")
                 return
@@ -277,7 +277,7 @@ class ZGameModule(MatrixBotModule):
 
             room.send_html(html_data)
 
-        elif command in ['!zsave']:
+        elif command in ['!zsave', '!zs']:
             if len(words) < 2:
                 room.send_text("Use: !zsave <save-name> [overwrite]")
                 return
