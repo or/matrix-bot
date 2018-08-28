@@ -137,7 +137,7 @@ def test_zgame_start_with_unknown_game_id(zgame):
     room_mock.send_text.assert_called_with("Unknown game-id 'foobar'")
 
 
-def test_zgame_convert_to_html():
+def test_zgame_convert_to_html(zgame):
     data = """\
    Broken Top Boulevard, Outside No. 15                                                                                                Time:  2:26 pm
    - in the black chevy
@@ -160,12 +160,11 @@ def test_zgame_convert_to_html():
   The glove compartment is closed. Sat on the passenger seat is a whiskey bottle.
 
 > > """
-    html_data = zgame_module.ZGameModule.convert_to_html(data)
+    html_data = zgame.convert_to_html(data, "test-room")
     expected_html_data = """\
 <div>
-<div class="location">Broken Top Boulevard, Outside No. 15</div>
+<div class="location">Broken Top Boulevard, Outside No. 15 (in the black chevy)</div>
 <div class="score">Time:  2:26 pm</div>
-<ul><li>in the black chevy</li></ul>
 <div class="hint">[For a closer description of something, EXAMINE it.]</div>
 <pre>     MAKE IT GOOD
         By Jon Ingold
@@ -182,12 +181,12 @@ she wanted to stress there's a lot of blood."</p>
     assert html_data == expected_html_data
 
 
-def test_zgame_convert_to_html_no_status_line():
+def test_zgame_convert_to_html_no_status_line(zgame):
     data = """\
 You're not holding your gown.
 
 > """
-    html_data = zgame_module.ZGameModule.convert_to_html(data)
+    html_data = zgame.convert_to_html(data, "test-room")
     expected_html_data = """\
 <div><p>You're not holding your gown.</p></div>
 """

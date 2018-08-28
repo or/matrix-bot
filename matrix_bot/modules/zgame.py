@@ -32,9 +32,10 @@ class ZGameModule(MatrixBotModule):
     def get_default_dfrotz_path():
         return os.path.abspath(os.path.join(__file__, "../../../bin/dfrotz"))
 
-    @staticmethod
-    def convert_to_html(data):
-        # print(data)
+    def convert_to_html(self, data, room_id):
+        if room_id not in self.status_line_cache:
+            self.status_line_cache[room_id] = {}
+
         data = data.rstrip('> \n\r')
         lines = data.split('\n')
 
@@ -47,10 +48,25 @@ class ZGameModule(MatrixBotModule):
             location = location.strip()
             score = score.strip()
 
-            main_div.append(E.DIV(E.CLASS('location'), location))
-            main_div.append(E.DIV(E.CLASS('score'), score))
+            # Make It Good uses " - ..." on the second line as extension of the
+            # location in the status line
+            if lines:
+                line = lines[0].strip()
+                if line.startswith('- '):
+                    lines.pop(0)
+                    location = location + ' (' + line[2:] + ')'
+
+            if location != self.status_line_cache[room_id].get('location', ''):
+                main_div.append(E.DIV(E.CLASS('location'), location))
+
+            if score != self.status_line_cache[room_id].get('score', ''):
+                main_div.append(E.DIV(E.CLASS('score'), score))
         else:
             location = None
+            score = None
+
+        self.status_line_cache[room_id]['location'] = location
+        self.status_line_cache[room_id]['score'] = score
 
         current = main_div
         for raw_line in lines:
@@ -128,7 +144,14 @@ class ZGameModule(MatrixBotModule):
             self.games[game_id] = data
 
         self.sessions = {}
+        self.status_line_cache = {}
         self.load_sessions()
+
+    def update_status_line_cache(self, room_id, new_status_line_cache):
+        if room_id not in self.status_line_cache:
+            self.status_line_cache[room_id] = {}
+
+        self.status_line_cache[room_id].update(new_status_line_cache)
 
     def process(self, client, event):
         if event['type'] != 'm.room.message':
@@ -222,7 +245,7 @@ class ZGameModule(MatrixBotModule):
             self.send_prefix(p, game)
 
             data = self.send_data_to_process(p, '\n')
-            html_data = ZGameModule.convert_to_html(data)
+            html_data = self.convert_to_html(data, room_id)
 
             self.save_game(p, room_id, game_id)
             self.quit_game(p)
@@ -249,7 +272,7 @@ class ZGameModule(MatrixBotModule):
                 room.send_text("No session found for game-id '{}'".format(game_id))
                 return
 
-            html_data = ZGameModule.convert_to_html(data)
+            html_data = self.convert_to_html(data, room_id)
 
             self.save_game(p, room_id, game_id)
             self.quit_game(p)
@@ -320,7 +343,7 @@ class ZGameModule(MatrixBotModule):
                 room.send_text("No session found for game-id '{}'".format(game_id))
                 return
 
-            html_data = ZGameModule.convert_to_html(data)
+            html_data = self.convert_to_html(data, room_id)
 
             self.save_game(p, room_id, game_id)
             self.quit_game(p)
@@ -378,7 +401,7 @@ class ZGameModule(MatrixBotModule):
 
             command = full_command + '\n'
             data = self.send_data_to_process(p, command)
-            html_data = ZGameModule.convert_to_html(data)
+            html_data = self.convert_to_html(data, room_id)
 
             self.save_game(p, room_id, game_id)
             self.quit_game(p)
