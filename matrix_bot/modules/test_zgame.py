@@ -75,11 +75,24 @@ def test_zgame_list(zgame):
     zgame_module.Room.assert_called_with(client, event['room_id'])
     room_mock.send_html.assert_called_with("""\
 <table>
-  <tr><th>id</th><th>name</th></tr>
-  <tr><td>anchor</td><td>Anchorhead</td></tr>
-  <tr><td>h2g2</td><td>Hitchhiker's Guide To The Galaxy</td></tr>
-  <tr><td>make-it-good</td><td>Make It Good</td></tr>
-</table>""")
+<tr>
+<th>id</th>
+<th>name</th>
+</tr>
+<tr>
+<td>anchor</td>
+<td>Anchorhead</td>
+</tr>
+<tr>
+<td>h2g2</td>
+<td>Hitchhiker's Guide To The Galaxy</td>
+</tr>
+<tr>
+<td>make-it-good</td>
+<td>Make It Good</td>
+</tr>
+</table>
+""")
 
 
 def test_zgame_start_without_game_id(zgame):
@@ -154,7 +167,6 @@ def test_zgame_convert_to_html():
 <div class="score">Time:  2:26 pm</div>
 <ul><li>in the black chevy</li></ul>
 <div class="hint">[For a closer description of something, EXAMINE it.]</div>
-<p></p>
 <pre>     MAKE IT GOOD
         By Jon Ingold
      -- Release 13 / Serial number 090921 / Inform v6.21 Library 6/10</pre>
@@ -165,6 +177,19 @@ she wanted to stress there's a lot of blood."</p>
 <p>"Oh, Inspector. Word is, if you don't crack this one, you're out of a job."</p>
 <p>The glove compartment is closed. Sat on the passenger seat is a whiskey bottle.</p>
 </div>
+"""
+
+    assert html_data == expected_html_data
+
+
+def test_zgame_convert_to_html_no_status_line():
+    data = """\
+You're not holding your gown.
+
+> """
+    html_data = zgame_module.ZGameModule.convert_to_html(data)
+    expected_html_data = """\
+<div><p>You're not holding your gown.</p></div>
 """
 
     assert html_data == expected_html_data

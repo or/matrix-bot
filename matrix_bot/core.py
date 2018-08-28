@@ -3,10 +3,16 @@ import configparser
 import inspect
 import json
 import logging
+import lxml.html
+import os.path
 import re
+import sys
 import time
+import traceback
 
 import requests
+
+from lxml.html import builder as E
 
 from bs4 import BeautifulSoup
 from matrix_client.api import MatrixRequestError
@@ -26,9 +32,14 @@ class MatrixBot:
     def __init__(self, config):
         self.config = config
         self.modules = []
+        if self.config['main'].get('debug', '').lower() == 'true':
+            self.debug = True
+        else:
+            self.debug = False
 
         for key, value in modules.__dict__.items():
             if inspect.isclass(value) and issubclass(value, MatrixBotModule):
+                print("loading {}...".format(value))
                 m = value.create(config)
                 if m:
                     self.modules.append(m)
@@ -47,8 +58,16 @@ class MatrixBot:
                                  event=event)
 
         for module in self.modules:
-            module.process(self.client, event)
-
+            try:
+                module.process(self.client, event)
+            except Exception as e:
+                room = Room(self.client, event['room_id'])
+                if self.debug:
+                    msg = E.PRE(traceback.format_exc())
+                    html_data = lxml.html.tostring(msg).decode('utf-8')
+                    room.send_html(html_data)
+                else:
+                    room.send_text("There was an error.")
 
     def on_room_message(self, room_id, sender_id, content, event):
         pass
