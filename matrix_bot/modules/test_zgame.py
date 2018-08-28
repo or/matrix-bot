@@ -162,10 +162,9 @@ def test_zgame_convert_to_html(zgame):
 > > """
     html_data = zgame.convert_to_html(data, "test-room")
     expected_html_data = """\
-<div>
+<div title="[For a closer description of something, EXAMINE it.]">
 <div class="location">Broken Top Boulevard, Outside No. 15 (in the black chevy)</div>
 <div class="score">Time:  2:26 pm</div>
-<div class="hint">[For a closer description of something, EXAMINE it.]</div>
 <pre>     MAKE IT GOOD
         By Jon Ingold
      -- Release 13 / Serial number 090921 / Inform v6.21 Library 6/10</pre>

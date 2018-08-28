@@ -78,9 +78,7 @@ class ZGameModule(MatrixBotModule):
                 continue
 
             if line.startswith('[') and line.endswith(']'):
-                current = main_div
-                hint = E.DIV(E.CLASS('hint'), line)
-                current.append(hint)
+                current.attrib['title'] = line
                 continue
 
             if line.startswith('- '):
