@@ -175,7 +175,7 @@ class ZGameModule(MatrixBotModule):
         p = self.start_frotz(game)
         self.send_prefix(p, game)
         self.send_data_to_process(p, '\n')
-        data = self.restore_game(p, room_id, game_id)
+        data = self.load_game(p, room_id, game_id, name)
         if data is None:
             room_.send_text("No session found for game-id '{}'".format(game_id))
             return
