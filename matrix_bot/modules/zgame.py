@@ -28,106 +28,6 @@ class ZGameModule(MatrixBotModule):
 
         return None
 
-    @staticmethod
-    def get_default_dfrotz_path():
-        return os.path.abspath(os.path.join(__file__, "../../../bin/dfrotz"))
-
-    def convert_to_html(self, data, room_id):
-        if room_id not in self.status_line_cache:
-            self.status_line_cache[room_id] = {}
-
-        data = data.rstrip('> \n\r')
-        lines = data.split('\n')
-
-        main_div = E.DIV()
-
-        first_line_chunks = re.split('    +', lines[0], 1)
-        if len(first_line_chunks) > 1:
-            lines.pop(0)
-            location, score = first_line_chunks
-            location = location.strip()
-            location_full = location
-            score = score.strip()
-
-            # Make It Good uses " - ..." on the second line as extension of the
-            # location in the status line
-            if lines:
-                line = lines[0].strip()
-                if line.startswith('- '):
-                    lines.pop(0)
-                    location_full = location + ' (' + line[2:] + ')'
-
-            if location_full != self.status_line_cache[room_id].get('location', ''):
-                main_div.append(E.DIV(E.CLASS('location'), location_full))
-
-            if score != self.status_line_cache[room_id].get('score', ''):
-                main_div.append(E.DIV(E.CLASS('score'), score))
-        else:
-            location = None
-            location_full = None
-            score = None
-
-        self.status_line_cache[room_id]['location'] = location_full
-        self.status_line_cache[room_id]['score'] = score
-
-        current = main_div
-        for raw_line in lines:
-            line = raw_line.strip()
-            if line == '.':
-                line = ''
-
-            if location and line.startswith(location):
-                continue
-
-            if line.startswith('[') and line.endswith(']'):
-                current.attrib['title'] = line
-                continue
-
-            if line.startswith('- '):
-                if current.tag != 'ul':
-                    current = E.UL()
-                    main_div.append(current)
-
-                current.append(E.LI(line[2:]))
-                continue
-
-            elif current.tag == 'ul':
-                current = main_div
-                continue
-
-            if raw_line.startswith('    '):
-                if current.tag != 'pre':
-                    current = E.PRE()
-                    main_div.append(current)
-
-                if current.text:
-                    current.text += '\n' + raw_line
-                else:
-                    current.text = raw_line
-
-                continue
-
-            elif line and current.tag == 'pre':
-                current = main_div
-
-            if not line:
-                if current.tag == 'pre':
-                    continue
-
-            if current.tag != 'p' and not line:
-                continue
-
-            if current.tag != 'p' or not line:
-                current = E.P()
-                main_div.append(current)
-
-            if current.text:
-                current.text += '\n' + line
-            else:
-                current.text = line
-
-        return lxml.html.tostring(main_div, pretty_print=True).decode('utf-8')
-
     def __init__(self, config):
         super(ZGameModule, self).__init__(config)
         self.executable = self.config['zgame'].get('dfrotz_bin', ZGameModule.get_default_dfrotz_path())
@@ -354,6 +254,129 @@ class ZGameModule(MatrixBotModule):
 
         room_.send_html(html_data)
 
+    # most things below this line probably can be refactored into a frotz module
+
+    @staticmethod
+    def get_default_dfrotz_path():
+        return os.path.abspath(os.path.join(__file__, "../../../bin/dfrotz"))
+
+    @staticmethod
+    def read_stdout_from_process(process):
+        data = os.read(process.stdout.fileno(), 100000)
+        data = data.decode('utf-8')
+        print('---')
+        print(data)
+        print('---')
+        return data
+
+    @staticmethod
+    def escape_room_id(room_id):
+        return re.sub(r'[^a-zA-Z0-9._-]', '_', room_id)
+
+    @staticmethod
+    def get_temporary_filename():
+        filename = ''
+        while len(filename) < 32:
+            filename += random.choice(string.ascii_lowercase + string.digits)
+
+        return '/tmp/' + filename
+
+    def convert_to_html(self, data, room_id):
+        if room_id not in self.status_line_cache:
+            self.status_line_cache[room_id] = {}
+
+        data = data.rstrip('> \n\r')
+        lines = data.split('\n')
+
+        main_div = E.DIV()
+
+        first_line_chunks = re.split('    +', lines[0], 1)
+        if len(first_line_chunks) > 1:
+            lines.pop(0)
+            location, score = first_line_chunks
+            location = location.strip()
+            location_full = location
+            score = score.strip()
+
+            # Make It Good uses " - ..." on the second line as extension of the
+            # location in the status line
+            if lines:
+                line = lines[0].strip()
+                if line.startswith('- '):
+                    lines.pop(0)
+                    location_full = location + ' (' + line[2:] + ')'
+
+            if location_full != self.status_line_cache[room_id].get('location', ''):
+                main_div.append(E.DIV(E.CLASS('location'), location_full))
+
+            if score != self.status_line_cache[room_id].get('score', ''):
+                main_div.append(E.DIV(E.CLASS('score'), score))
+        else:
+            location = None
+            location_full = None
+            score = None
+
+        self.status_line_cache[room_id]['location'] = location_full
+        self.status_line_cache[room_id]['score'] = score
+
+        current = main_div
+        for raw_line in lines:
+            line = raw_line.strip()
+            if line == '.':
+                line = ''
+
+            if location and line.startswith(location):
+                continue
+
+            if line.startswith('[') and line.endswith(']'):
+                current.attrib['title'] = line
+                continue
+
+            if line.startswith('- '):
+                if current.tag != 'ul':
+                    current = E.UL()
+                    main_div.append(current)
+
+                current.append(E.LI(line[2:]))
+                continue
+
+            elif current.tag == 'ul':
+                current = main_div
+                continue
+
+            if raw_line.startswith('    '):
+                if current.tag != 'pre':
+                    current = E.PRE()
+                    main_div.append(current)
+
+                if current.text:
+                    current.text += '\n' + raw_line
+                else:
+                    current.text = raw_line
+
+                continue
+
+            elif line and current.tag == 'pre':
+                current = main_div
+
+            if not line:
+                if current.tag == 'pre':
+                    continue
+
+            if current.tag != 'p' and not line:
+                continue
+
+            if current.tag != 'p' or not line:
+                current = E.P()
+                main_div.append(current)
+
+            if current.text:
+                current.text += '\n' + line
+            else:
+                current.text = line
+
+        return lxml.html.tostring(main_div, pretty_print=True).decode('utf-8')
+
     def update_status_line_cache(self, room_id, new_status_line_cache):
         if room_id not in self.status_line_cache:
             self.status_line_cache[room_id] = {}
@@ -386,19 +409,6 @@ class ZGameModule(MatrixBotModule):
         process.stdin.flush()
         time.sleep(0.1)
         return ZGameModule.read_stdout_from_process(process)
-
-    @staticmethod
-    def read_stdout_from_process(process):
-        data = os.read(process.stdout.fileno(), 100000)
-        data = data.decode('utf-8')
-        print('---')
-        print(data)
-        print('---')
-        return data
-
-    @staticmethod
-    def escape_room_id(room_id):
-        return re.sub(r'[^a-zA-Z0-9._-]', '_', room_id)
 
     def get_session_file(self, room_id, game_id):
         file_path = os.path.join(self.session_dir, ZGameModule.escape_room_id(room_id), game_id)
@@ -456,11 +466,3 @@ class ZGameModule(MatrixBotModule):
 
     def quit_game(self, process):
         process.kill()
-
-    @staticmethod
-    def get_temporary_filename():
-        filename = ''
-        while len(filename) < 32:
-            filename += random.choice(string.ascii_lowercase + string.digits)
-
-        return '/tmp/' + filename
