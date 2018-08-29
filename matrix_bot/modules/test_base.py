@@ -7,9 +7,7 @@ from matrix_bot.modules.base import MatrixBotModule, arg, Command
 @pytest.fixture
 def TestModule():
     class TestModuleClass(MatrixBotModule):
-        def __init__(self, config):
-            super().__init__(config)
-
+        def register_commands(self):
             self.add_command(
                 '!command1',
                 callback=self.command1,

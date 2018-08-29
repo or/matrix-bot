@@ -52,7 +52,7 @@ class Command:
                 return False
 
             self.arguments[0].validator(stripped_line)
-            self.callback(event, room_=room_, user_=user_, **{self.arguments[0].get_variable_name() : stripped_line})
+            self.callback(event=event, room_=room_, user_=user_, **{self.arguments[0].get_variable_name() : stripped_line})
             return
 
         words = stripped_line.split()
@@ -70,7 +70,11 @@ class Command:
                 kwargs[arg.get_variable_name()] = None
                 continue
 
-            value = words[i]
+            if arg.multi_word:
+                value = ' '.join(words[i:])
+            else:
+                value = words[i]
+
             try:
                 arg.validator(value)
             except ValidationError as e:
@@ -78,15 +82,16 @@ class Command:
 
             kwargs[arg.get_variable_name()] = value
 
-        self.callback(event, room_=room_, user_=user_, **kwargs)
+        self.callback(event=event, room_=room_, user_=user_, **kwargs)
         return True
 
 
 class CommandArgument:
-    def __init__(self, name, validator, optional):
+    def __init__(self, name, validator, optional, multi_word):
         self.name = name
         self.validator = validator
         self.optional = optional
+        self.multi_word = multi_word
 
     def get_variable_name(self):
         return re.sub(r'[^a-zA-Z0-9_]', '_', self.name)
@@ -98,8 +103,8 @@ class CommandArgument:
         return '<{}>'.format(self.name)
 
 
-def arg(name, validator, optional=False):
-    return CommandArgument(name, validator, optional)
+def arg(name, validator, optional=False, multi_word=False):
+    return CommandArgument(name, validator, optional, multi_word)
 
 
 class MatrixBotModule:
@@ -111,7 +116,14 @@ class MatrixBotModule:
         self.config = config
         self.commands = []
 
+        self.register_commands()
+
+    def register_commands(self):
+        pass
+
     def process(self, client, event):
+        self.client = client
+
         if event['type'] == 'm.room.message':
             return self.handle_room_message(client, event)
 

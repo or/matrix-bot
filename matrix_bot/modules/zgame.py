@@ -147,6 +147,7 @@ class ZGameModule(MatrixBotModule):
         self.status_line_cache = {}
         self.load_sessions()
 
+    def register_commands(self):
         self.add_command(
             '!zhelp', '!zh',
             callback=self.show_help,
