@@ -85,6 +85,13 @@ class ZGameModule(MatrixBotModule):
             help="list saved games for game {arg1}")
 
         self.add_command(
+            '!zdownload', '!zd',
+            arg('game-id', self.validate_game_id),
+            arg('name', self.validate_savegame_name),
+            callback=self.zdownload,
+            help="download savegame {arg2} for game {arg1}")
+
+        self.add_command(
             '!zcontinue', '!zc',
             arg('game-id', self.validate_game_id),
             callback=self.zcontinue,
@@ -186,6 +193,24 @@ class ZGameModule(MatrixBotModule):
         self.quit_game(p)
 
         room_.send_html(html_data)
+
+    def zdownload(self, event, game_id, name, room_, user_):
+        room_id = room_.room_id
+        game = self.games[game_id]
+
+        if not re.match(r'^[a-zA-Z0-9-]+$', name):
+            room_.send_text("Filename '{}' should only contain a-z, A-Z, 0-9 or - ".format(name))
+            return
+
+        target_path = os.path.join(self.save_dir, ZGameModule.escape_room_id(room_id), game_id, name)
+        if not os.path.exists(target_path):
+            room_.send_text("Save file '{}' doesn't exist".format(name))
+            return
+
+        file_url = self.client.upload(open(target_path, 'rb').read(), "application/octet-stream")
+        room_.send_file(url=file_url,
+                        name=game_id + '-' + name,
+                        mimetype="application/octet-stream")
 
     def zlistsaves(self, event, game_id, room_, user_):
         room_id = room_.room_id
