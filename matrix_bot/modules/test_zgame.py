@@ -5,12 +5,16 @@ import pytest
 from unittest.mock import Mock, patch
 
 from . import zgame as zgame_module
+from matrix_bot.modules import base
 
 
 @pytest.fixture
 def root_dir():
     return os.path.abspath(os.path.join(__file__, "../../.."))
 
+@pytest.fixture
+def room_id():
+    return '!test-room:matrix.thialfihar.org'
 
 @pytest.fixture
 def zgame_config(root_dir):
@@ -55,7 +59,7 @@ def test_zgame_config_parsing(zgame, root_dir):
     assert zgame.games['make-it-good']['file'] == os.path.join(root_dir, "test-data/MakeItGood.zblorb")
 
 
-def test_zgame_list(zgame):
+def test_zgame_list(zgame, room_id):
     client = Mock()
     event = {
         'origin_server_ts': 1535392295415,
@@ -64,15 +68,16 @@ def test_zgame_list(zgame):
         'unsigned': {'age': 23},
         'content': {'body': '!zlist', 'msgtype': 'm.text'},
         'type': 'm.room.message',
-        'room_id': '!test-room:matrix.thialfihar.org'
+        'room_id': room_id,
     }
 
     room_mock = Mock()
-    zgame_module.Room = Mock()
-    zgame_module.Room.return_value = room_mock
+    room_mock.room_id = room_id
+    base.Room = Mock()
+    base.Room.return_value = room_mock
     zgame.process(client, event)
 
-    zgame_module.Room.assert_called_with(client, event['room_id'])
+    base.Room.assert_called_with(client, event['room_id'])
     room_mock.send_html.assert_called_with("""\
 <table>
 <tr>
@@ -95,7 +100,7 @@ def test_zgame_list(zgame):
 """)
 
 
-def test_zgame_start_without_game_id(zgame):
+def test_zgame_start_without_game_id(zgame, room_id):
     client = Mock()
     event = {
         'origin_server_ts': 1535392295415,
@@ -104,19 +109,20 @@ def test_zgame_start_without_game_id(zgame):
         'unsigned': {'age': 23},
         'content': {'body': '!zstart', 'msgtype': 'm.text'},
         'type': 'm.room.message',
-        'room_id': '!test-room:matrix.thialfihar.org'
+        'room_id': room_id,
     }
 
     room_mock = Mock()
-    zgame_module.Room = Mock()
-    zgame_module.Room.return_value = room_mock
+    room_mock.room_id = room_id
+    base.Room = Mock()
+    base.Room.return_value = room_mock
     zgame.process(client, event)
 
-    zgame_module.Room.assert_called_with(client, event['room_id'])
-    room_mock.send_text.assert_called_with("Use: !zstart <game-id>")
+    base.Room.assert_called_with(client, event['room_id'])
+    room_mock.send_text.assert_called_with("Missing argument 'game-id'")
 
 
-def test_zgame_start_with_unknown_game_id(zgame):
+def test_zgame_start_with_unknown_game_id(zgame, room_id):
     client = Mock()
     event = {
         'origin_server_ts': 1535392295415,
@@ -125,16 +131,17 @@ def test_zgame_start_with_unknown_game_id(zgame):
         'unsigned': {'age': 23},
         'content': {'body': '!zstart foobar', 'msgtype': 'm.text'},
         'type': 'm.room.message',
-        'room_id': '!test-room:matrix.thialfihar.org'
+        'room_id': room_id,
     }
 
     room_mock = Mock()
-    zgame_module.Room = Mock()
-    zgame_module.Room.return_value = room_mock
+    room_mock.room_id = room_id
+    base.Room = Mock()
+    base.Room.return_value = room_mock
     zgame.process(client, event)
 
-    zgame_module.Room.assert_called_with(client, event['room_id'])
-    room_mock.send_text.assert_called_with("Unknown game-id 'foobar'")
+    base.Room.assert_called_with(client, event['room_id'])
+    room_mock.send_text.assert_called_with("Bad argument 'game-id': Unknown game-id 'foobar'")
 
 
 def test_zgame_convert_to_html(zgame):
@@ -193,7 +200,7 @@ You're not holding your gown.
     assert html_data == expected_html_data
 
 
-def test_zgame_start_make_it_good(zgame):
+def test_zgame_start_make_it_good(zgame, room_id):
     client = Mock()
     event = {
         'origin_server_ts': 1535392295415,
@@ -202,15 +209,16 @@ def test_zgame_start_make_it_good(zgame):
         'unsigned': {'age': 23},
         'content': {'body': '!zstart make-it-good', 'msgtype': 'm.text'},
         'type': 'm.room.message',
-        'room_id': '!test-room:matrix.thialfihar.org'
+        'room_id': room_id,
     }
 
     zgame.sessions = {}
 
     room_mock = Mock()
-    zgame_module.Room = Mock()
-    zgame_module.Room.return_value = room_mock
+    room_mock.room_id = room_id
+    base.Room = Mock()
+    base.Room.return_value = room_mock
     zgame.process(client, event)
 
-    zgame_module.Room.assert_called_with(client, event['room_id'])
+    base.Room.assert_called_with(client, event['room_id'])
     assert zgame.sessions == {event['room_id']: 'make-it-good'}

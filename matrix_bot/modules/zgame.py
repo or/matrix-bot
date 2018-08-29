@@ -18,7 +18,7 @@ from subprocess import Popen, PIPE, STDOUT
 
 from matrix_client.room import Room
 
-from matrix_bot.modules.base import MatrixBotModule
+from matrix_bot.modules.base import MatrixBotModule, arg, ValidationError
 
 class ZGameModule(MatrixBotModule):
     @staticmethod
@@ -46,6 +46,7 @@ class ZGameModule(MatrixBotModule):
             lines.pop(0)
             location, score = first_line_chunks
             location = location.strip()
+            location_full = location
             score = score.strip()
 
             # Make It Good uses " - ..." on the second line as extension of the
@@ -54,18 +55,19 @@ class ZGameModule(MatrixBotModule):
                 line = lines[0].strip()
                 if line.startswith('- '):
                     lines.pop(0)
-                    location = location + ' (' + line[2:] + ')'
+                    location_full = location + ' (' + line[2:] + ')'
 
-            if location != self.status_line_cache[room_id].get('location', ''):
-                main_div.append(E.DIV(E.CLASS('location'), location))
+            if location_full != self.status_line_cache[room_id].get('location', ''):
+                main_div.append(E.DIV(E.CLASS('location'), location_full))
 
             if score != self.status_line_cache[room_id].get('score', ''):
                 main_div.append(E.DIV(E.CLASS('score'), score))
         else:
             location = None
+            location_full = None
             score = None
 
-        self.status_line_cache[room_id]['location'] = location
+        self.status_line_cache[room_id]['location'] = location_full
         self.status_line_cache[room_id]['score'] = score
 
         current = main_div
@@ -145,266 +147,217 @@ class ZGameModule(MatrixBotModule):
         self.status_line_cache = {}
         self.load_sessions()
 
+        self.add_command(
+            '!zhelp', '!zh',
+            callback=self.show_help,
+            help="show help")
+
+        self.add_command(
+            '!zlist',
+            callback=self.zlist,
+            help="list all installed games and their IDs")
+
+        self.add_command(
+            '!zstart',
+            arg('game-id', self.validate_game_id),
+            callback=self.zstart,
+            help="start a new session of game {arg1}, replaces the current session")
+
+        self.add_command(
+            '!zsave', '!zs',
+            arg('name', self.validate_savegame_name),
+            arg('overwrite', self.validate_overwrite, optional=True),
+            callback=self.zsave,
+            help="save current session to {arg1}, if it already exists, then {arg2} must be specified")
+
+        self.add_command(
+            '!zload', '!zl',
+            arg('game-id', self.validate_game_id),
+            arg('name', self.validate_savegame_name),
+            callback=self.zload,
+            help="load a new save game of game <game-id>, replacing the current session")
+
+        self.add_command(
+            '!zlistsaves', '!zls',
+            arg('game-id', self.validate_game_id),
+            callback=self.zlistsaves,
+            help="list saved games for game {arg1}")
+
+        self.add_command(
+            '!zcontinue', '!zc',
+            arg('game-id', self.validate_game_id),
+            callback=self.zcontinue,
+            help="continue the last session of game <game-id> that was played, if there is one")
+
+        self.add_command(
+            '\\',
+            arg('command', self.validate_command),
+            callback=self.zcommand,
+            prefix=True,
+            help="send commands to the game itself, e.g.: \\look around")
+
+    def validate_savegame_name(self, value):
+        if not re.match(r'^[a-zA-Z0-9-]+$', value):
+            raise ValidationError("Filename '{}' should only contain a-z, A-Z, 0-9 or - ".format(value))
+
+    def validate_game_id(self, value):
+        if value not in self.games:
+            raise ValidationError("Unknown game-id '{}'".format(value))
+
+    def validate_overwrite(self, value):
+        if value.lower() != 'overwrite':
+            raise ValidationError("invalid value '{}', only 'overwrite' is accepted".format(value))
+
+    def validate_command(self, value):
+        pass
+
+    def zlist(self, event, room_, user_):
+        html = E.TABLE()
+        html.append(E.TR(E.TH('id'), E.TH('name')))
+        for unused_id, game in sorted(self.games.items(), key=lambda x: x[1]['name']):
+            html.append(E.TR(E.TD(game['id']), E.TD(game['name'])))
+
+        html_data = lxml.html.tostring(html, pretty_print=True).decode('utf-8')
+        room_.send_html(html_data)
+
+    def zstart(self, event, game_id, room_, user_):
+        room_id = room_.room_id
+        game = self.games[game_id]
+
+        p = self.start_frotz(game)
+        self.send_prefix(p, game)
+
+        data = self.send_data_to_process(p, '\n')
+        html_data = self.convert_to_html(data, room_id)
+
+        self.save_game(p, room_id, game_id)
+        self.quit_game(p)
+
+        room_.send_html(html_data)
+
+    def zsave(self, event, name, overwrite, room_, user_):
+        room_id = room_.room_id
+
+        if overwrite == 'overwrite':
+            overwrite = True
+        else:
+            overwrite = False
+
+        if room_id not in self.sessions:
+            room_.send_text("No session to save")
+
+        game_id = self.sessions[room_id]
+        game = self.games[game_id]
+
+        target_path = os.path.join(self.save_dir, ZGameModule.escape_room_id(room_id), game_id, name)
+        if os.path.exists(target_path) and not overwrite:
+            room_.send_text("Save file '{}' exists, pick another one or specify 'overwrite' as last argument".format(name))
+            return
+
+        os.makedirs(os.path.abspath(os.path.join(target_path, os.pardir)), exist_ok=True)
+        shutil.copy(self.get_session_file(room_id, game_id), target_path)
+        room_.send_text("Saved to file '{}' for game '{}'".format(name, game_id))
+
+    def zload(self, event, game_id, name, room_, user_):
+        room_id = room_.room_id
+        game = self.games[game_id]
+
+        if not re.match(r'^[a-zA-Z0-9-]+$', name):
+            room_.send_text("Filename '{}' should only contain a-z, A-Z, 0-9 or - ".format(name))
+            return
+
+        target_path = os.path.join(self.save_dir, ZGameModule.escape_room_id(room_id), game_id, name)
+        if not os.path.exists(target_path):
+            room_.send_text("Save file '{}' doesn't exist".format(name))
+            return
+
+        p = self.start_frotz(game)
+        self.send_prefix(p, game)
+        self.send_data_to_process(p, '\n')
+        data = self.restore_game(p, room_id, game_id)
+        if data is None:
+            room_.send_text("No session found for game-id '{}'".format(game_id))
+            return
+
+        html_data = self.convert_to_html(data, room_id)
+
+        self.save_game(p, room_id, game_id)
+        self.quit_game(p)
+
+        room_.send_html(html_data)
+
+    def zlistsaves(self, event, game_id, room_, user_):
+        room_id = room_.room_id
+
+        specific_savegame_dir = os.path.join(self.save_dir, ZGameModule.escape_room_id(room_id), game_id)
+        os.makedirs(specific_savegame_dir, exist_ok=True)
+        filenames = [
+            (f, os.path.getmtime(os.path.join(specific_savegame_dir, f)))
+            for f in os.listdir(specific_savegame_dir)
+            if os.path.isfile(os.path.join(specific_savegame_dir, f))
+        ]
+        print(specific_savegame_dir, filenames)
+        filenames.sort(key=lambda x: x[1])
+        html = E.TABLE()
+        if not filenames:
+            room_.send_text("No savegames for '{}' in this room".format(game_id))
+            return
+
+        for f, s in filenames:
+            timestamp = datetime.fromtimestamp(s)
+            html.append(E.TR(E.TD(timestamp.isoformat(' ')), E.TD(f)))
+
+        html_data = lxml.html.tostring(html, pretty_print=True).decode('utf-8')
+        room_.send_html(html_data)
+
+    def zcontinue(self, event, game_id, overwrite, room_, user_):
+        room_id = room_.room_id
+        game = self.games[game_id]
+
+        p = self.start_frotz(game)
+        self.send_prefix(p, game)
+        self.send_data_to_process(p, '\n')
+        data = self.restore_game(p, room_id, game_id)
+        if data is None:
+            room_.send_text("No session found for game-id '{}'".format(game_id))
+            return
+
+        html_data = self.convert_to_html(data, room_id)
+
+        self.save_game(p, room_id, game_id)
+        self.quit_game(p)
+
+        room_.send_html(html_data)
+
+    def zcommand(self, event, command, room_, user_):
+        room_id = room_.room_id
+
+        if room_id not in self.sessions:
+            room_.send_text("No active session, use !zstart to start a game")
+            return
+
+        game_id = self.sessions[room_id]
+        game = self.games[game_id]
+
+        p = self.start_frotz(game)
+        self.send_prefix(p, game)
+        self.send_data_to_process(p, '\n')
+        self.restore_game(p, room_id, game_id)
+
+        command = command + '\n'
+        data = self.send_data_to_process(p, command)
+        html_data = self.convert_to_html(data, room_id)
+
+        self.save_game(p, room_id, game_id)
+        self.quit_game(p)
+
+        room_.send_html(html_data)
+
     def update_status_line_cache(self, room_id, new_status_line_cache):
         if room_id not in self.status_line_cache:
             self.status_line_cache[room_id] = {}
 
         self.status_line_cache[room_id].update(new_status_line_cache)
-
-    def process(self, client, event):
-        if event['type'] != 'm.room.message':
-            return
-
-        room_id = event['room_id']
-        sender_id = event['sender']
-        content = event['content']
-
-        if content['msgtype'] != 'm.text':
-            return
-
-        words = [word.strip() for word in content['body'].split() if word.strip()]
-        if not words:
-            return
-
-        room = Room(client, room_id)
-
-        command = words[0].lower()
-        if command in ['!zlist', '!zl']:
-            html = E.TABLE()
-            html.append(E.TR(E.TH('id'), E.TH('name')))
-            for unused_id, game in sorted(self.games.items(), key=lambda x: x[1]['name']):
-                html.append(E.TR(E.TD(game['id']), E.TD(game['name'])))
-
-            html_data = lxml.html.tostring(html, pretty_print=True).decode('utf-8')
-            room.send_html(html_data)
-
-        elif command in ['!zhelp', '!zh']:
-            html = E.DIV(
-                E.P("Command list:"),
-                E.TABLE(
-                    E.TR(
-                        E.TH("command"),
-                        E.TH("arguments"),
-                        E.TH("details")
-                    ),
-                    E.TR(
-                        E.TD("!zhelp, !zh"),
-                        E.TD(""),
-                        E.TD("this help")
-                    ),
-                    E.TR(
-                        E.TD("!zlist"),
-                        E.TD(""),
-                        E.TD("list all installed games and their IDs")
-                    ),
-                    E.TR(
-                        E.TD("!zstart"),
-                        E.TD("<game-id>"),
-                        E.TD("start a new session of game <game-id>, replaces the current session")
-                    ),
-                    E.TR(
-                        E.TD("!zsave, !zs"),
-                        E.TD("<name>\xa0[overwrite]"),
-                        E.TD("save current session to <name>, if it already exists, then [overwrite] must be specified")
-                    ),
-                    E.TR(
-                        E.TD("!zload, !zl"),
-                        E.TD("<game-id>\xa0<name>"),
-                        E.TD("load a new save game of game <game-id>, replacing the current session")
-                    ),
-                    E.TR(
-                        E.TD("!zcontinue, !zc"),
-                        E.TD("<game-id>"),
-                        E.TD("continue the last session of game <game-id> that was played, if there is one")
-                    ),
-                    E.TR(
-                        E.TD("\\"),
-                        E.TD("<commands>"),
-                        E.TD("send commands to the game itself, e.g.: \look around")
-                    ),
-                )
-            )
-            html_data = lxml.html.tostring(html, pretty_print=True).decode('utf-8')
-            room.send_html(html_data)
-
-        elif command in ['!zstart']:
-            if len(words) < 2:
-                room.send_text("Use: !zstart <game-id>")
-                return
-
-            game_id = words[1].lower()
-            if game_id not in self.games:
-                room.send_text("Unknown game-id '{}'".format(game_id))
-                return
-
-            game = self.games[game_id]
-
-            p = self.start_frotz(game)
-            self.send_prefix(p, game)
-
-            data = self.send_data_to_process(p, '\n')
-            html_data = self.convert_to_html(data, room_id)
-
-            self.save_game(p, room_id, game_id)
-            self.quit_game(p)
-
-            room.send_html(html_data)
-
-        elif command in ['!zcontinue', '!zc']:
-            if len(words) < 2:
-                room.send_text("Use: !zcontinue <game-id>")
-                return
-
-            game_id = words[1].lower()
-            if game_id not in self.games:
-                room.send_text("Unknown game-id '{}'".format(game_id))
-                return
-
-            game = self.games[game_id]
-
-            p = self.start_frotz(game)
-            self.send_prefix(p, game)
-            self.send_data_to_process(p, '\n')
-            data = self.restore_game(p, room_id, game_id)
-            if data is None:
-                room.send_text("No session found for game-id '{}'".format(game_id))
-                return
-
-            html_data = self.convert_to_html(data, room_id)
-
-            self.save_game(p, room_id, game_id)
-            self.quit_game(p)
-
-            room.send_html(html_data)
-
-        elif command in ['!zsave', '!zs']:
-            if len(words) < 2:
-                room.send_text("Use: !zsave <save-name> [overwrite]")
-                return
-
-            filename = words[1]
-            if not re.match(r'^[a-zA-Z0-9-]+$', filename):
-                room.send_text("Filename '{}' should only contain a-z, A-Z, 0-9 or - ".format(filename))
-                return
-
-            overwrite = False
-            if len(words) > 2 and words[2].lower() != 'overwrite':
-                room.send_text("Can't understand argument '{}', should be 'overwrite'".format(words[2]))
-                return
-
-            elif len(words) > 2 and words[2].lower() == 'overwrite':
-                overwrite = True
-
-            if room_id not in self.sessions:
-                room.send_text("No session to save")
-                return
-
-            game_id = self.sessions[room_id]
-            game = self.games[game_id]
-
-            target_path = os.path.join(self.save_dir, ZGameModule.escape_room_id(room_id), game_id, filename)
-            if os.path.exists(target_path) and not overwrite:
-                room.send_text("Save file '{}' exists, pick another one or specify 'overwrite' as third argument".format(filename))
-                return
-
-            os.makedirs(os.path.abspath(os.path.join(target_path, os.pardir)), exist_ok=True)
-            shutil.copy(self.get_session_file(room_id, game_id), target_path)
-            room.send_text("Saved to file '{}' for game '{}'".format(filename, game_id))
-
-        elif command in ['!zload', '!zl']:
-            if len(words) < 3:
-                room.send_text("Use: !zload <game-id> <save-name>")
-                return
-
-            game_id = words[1].lower()
-            if game_id not in self.games:
-                room.send_text("Unknown game-id '{}'".format(game_id))
-                return
-
-            game = self.games[game_id]
-
-            filename = words[2]
-            if not re.match(r'^[a-zA-Z0-9-]+$', filename):
-                room.send_text("Filename '{}' should only contain a-z, A-Z, 0-9 or - ".format(filename))
-                return
-
-            target_path = os.path.join(self.save_dir, ZGameModule.escape_room_id(room_id), game_id, filename)
-            if not os.path.exists(target_path):
-                room.send_text("Save file '{}' doesn't exist".format(filename))
-                return
-
-            p = self.start_frotz(game)
-            self.send_prefix(p, game)
-            self.send_data_to_process(p, '\n')
-            data = self.restore_game(p, room_id, game_id)
-            if data is None:
-                room.send_text("No session found for game-id '{}'".format(game_id))
-                return
-
-            html_data = self.convert_to_html(data, room_id)
-
-            self.save_game(p, room_id, game_id)
-            self.quit_game(p)
-
-            room.send_html(html_data)
-
-        elif command in ['!zlistsaves', '!zlistsave', '!zls']:
-            if len(words) < 2:
-                room.send_text("Use: !zlistsaves <game-id>")
-                return
-
-            game_id = words[1].lower()
-            if game_id not in self.games:
-                room.send_text("Unknown game-id '{}'".format(game_id))
-                return
-
-            specific_savegame_dir = os.path.join(self.save_dir, ZGameModule.escape_room_id(room_id), game_id)
-            os.makedirs(specific_savegame_dir, exist_ok=True)
-            filenames = [
-                (f, os.path.getmtime(os.path.join(specific_savegame_dir, f)))
-                for f in os.listdir(specific_savegame_dir)
-                if os.path.isfile(os.path.join(specific_savegame_dir, f))
-            ]
-            print(specific_savegame_dir, filenames)
-            filenames.sort(key=lambda x: x[1])
-            html = E.TABLE()
-            if not filenames:
-                room.send_text("No savegames for '{}' in this room".format(game_id))
-                return
-
-            for f, s in filenames:
-                timestamp = datetime.fromtimestamp(s)
-                html.append(E.TR(E.TD(timestamp.isoformat(' ')), E.TD(f)))
-
-            html_data = lxml.html.tostring(html, pretty_print=True).decode('utf-8')
-            room.send_html(html_data)
-
-        elif command.startswith('\\'):
-            full_command = ' '.join(words)[1:]
-            if not full_command:
-                room.send_text("Use: \<command>")
-                return
-
-            if room_id not in self.sessions:
-                room.send_text("No active session, use !zstart to start a game")
-                return
-
-            game_id = self.sessions[room_id]
-            game = self.games[game_id]
-
-            p = self.start_frotz(game)
-            self.send_prefix(p, game)
-            self.send_data_to_process(p, '\n')
-            self.restore_game(p, room_id, game_id)
-
-            command = full_command + '\n'
-            data = self.send_data_to_process(p, command)
-            html_data = self.convert_to_html(data, room_id)
-
-            self.save_game(p, room_id, game_id)
-            self.quit_game(p)
-
-            room.send_html(html_data)
 
     def start_frotz(self, game):
         p = Popen([self.executable, '-w', '100000', '-h', '100000', game['file']],
