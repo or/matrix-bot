@@ -45,10 +45,6 @@ class MatrixBot:
                     self.modules.append(m)
 
 
-    def run(self):
-        pass
-
-
     def on_event(self, event):
         print(event)
         if event['type'] == 'm.room.message':
