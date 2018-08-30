@@ -274,6 +274,11 @@ class ZGameModule(MatrixBotModule):
         data = self.send_data_to_process(p, command)
         html_data = self.convert_to_html(data, room_id)
 
+        # send a hash and anew line in case we're stuck in a follow-up prompt
+        # to clarify, which would case the save to fail
+        # a hash also won't advance the time or move counter
+        self.send_data_to_process(p, '#\n')
+
         self.save_game(p, room_id, game_id)
         self.quit_game(p)
 
@@ -429,7 +434,7 @@ class ZGameModule(MatrixBotModule):
         return self.send_data_to_process(process, r'\lt\cm\w')
 
     def send_data_to_process(self, process, data):
-        print("sending:", data)
+        print("sending: '{}'".format(data))
         process.stdin.write(data.encode('utf-8'))
         process.stdin.flush()
         time.sleep(0.1)
