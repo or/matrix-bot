@@ -237,7 +237,7 @@ You have:
     expected_html_data = """\
 <div>
 <div class="location">Bedroom</div>\n<div class="score">Score: 0        Moves: 13</div>
-<p>You have:<br>a splitting headache<br>no tea<br>your gown (being worn)</p>
+<p>You have:<br>&#160; a splitting headache<br>&#160; no tea<br>&#160; your gown (being worn)</p>
 </div>
 """
 

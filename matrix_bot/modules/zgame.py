@@ -311,6 +311,12 @@ class ZGameModule(MatrixBotModule):
 
         return '/tmp/' + filename
 
+    @staticmethod
+    def count_leading_spaces(s):
+        for i in range(len(s)):
+            if s[i] != ' ':
+                return i
+
     def convert_to_html(self, data, room_id):
         if room_id not in self.status_line_cache:
             self.status_line_cache[room_id] = {}
@@ -351,6 +357,8 @@ class ZGameModule(MatrixBotModule):
         self.status_line_cache[room_id]['location'] = location_full
         self.status_line_cache[room_id]['score'] = score
 
+        base_leading_spaces = min(self.count_leading_spaces(s) for s in lines if s.strip(". "))
+
         current = main_div
         tail_element = None
         for raw_line in lines:
@@ -375,8 +383,8 @@ class ZGameModule(MatrixBotModule):
                 tail_element = None
 
             fixed_line = raw_line
-            if fixed_line.startswith("  "):
-                fixed_line = fixed_line[2:]
+            if base_leading_spaces > 0 and fixed_line.startswith(" " * base_leading_spaces):
+                fixed_line = fixed_line[base_leading_spaces:]
 
             fixed_line = fixed_line.replace("  ", "\xa0 ")
 
