@@ -316,6 +316,8 @@ class ZGameModule(MatrixBotModule):
             self.status_line_cache[room_id] = {}
 
         data = data.rstrip('> \n\r')
+        data = data.replace('</i><i>', '')
+        data = data.replace('</b><b>', '')
         lines = data.split('\n')
 
         main_div = E.DIV()
@@ -350,48 +352,19 @@ class ZGameModule(MatrixBotModule):
         self.status_line_cache[room_id]['score'] = score
 
         current = main_div
+        tail_element = None
         for raw_line in lines:
             line = raw_line.strip()
             if line == '.':
                 line = ''
 
-            if location and line.startswith(location):
+            clean_line = line.replace("<i>", "").replace("</i>", "").replace("<b>", "").replace("</b>", "")
+            if location and clean_line.startswith(location):
                 continue
 
             if line.startswith('[') and line.endswith(']'):
                 current.attrib['title'] = line
                 continue
-
-            if line.startswith('- '):
-                if current.tag != 'ul':
-                    current = E.UL()
-                    main_div.append(current)
-
-                current.append(E.LI(line[2:]))
-                continue
-
-            elif current.tag == 'ul':
-                current = main_div
-                continue
-
-            if raw_line.startswith('    '):
-                if current.tag != 'pre':
-                    current = E.PRE()
-                    main_div.append(current)
-
-                if current.text:
-                    current.text += '\n' + raw_line
-                else:
-                    current.text = raw_line
-
-                continue
-
-            elif line and current.tag == 'pre':
-                current = main_div
-
-            if not line:
-                if current.tag == 'pre':
-                    continue
 
             if current.tag != 'p' and not line:
                 continue
@@ -399,13 +372,39 @@ class ZGameModule(MatrixBotModule):
             if current.tag != 'p' or not line:
                 current = E.P()
                 main_div.append(current)
+                tail_element = None
 
-            if current.text:
-                current.text += '\n' + line
+            fixed_line = raw_line
+            if fixed_line.startswith("  "):
+                fixed_line = fixed_line[2:]
+
+            fixed_line = fixed_line.replace("  ", "\xa0 ")
+
+            if tail_element is not None:
+                if tail_element.tail:
+                    tail_element.tail += '\n' + fixed_line
+                else:
+                    tail_element.tail = fixed_line
+
             else:
-                current.text = line
+                if current.text:
+                    current.text += '\n' + fixed_line
+                else:
+                    current.text = fixed_line
 
-        return lxml.html.tostring(main_div, pretty_print=True).decode('utf-8')
+            if fixed_line and len(fixed_line) < 50:
+                br = E.BR()
+                current.append(br)
+                tail_element = br
+
+        html_data = lxml.html.tostring(main_div, pretty_print=True).decode('utf-8')
+        html_data = html_data.replace("&lt;i&gt;", '<i>')
+        html_data = html_data.replace("&lt;/i&gt;", '</i>')
+        html_data = html_data.replace("&lt;b&gt;", '<b>')
+        html_data = html_data.replace("&lt;/b&gt;", '</b>')
+        html_data = html_data.replace("<br></p>", '</p>')
+
+        return html_data
 
     def update_status_line_cache(self, room_id, new_status_line_cache):
         if room_id not in self.status_line_cache:

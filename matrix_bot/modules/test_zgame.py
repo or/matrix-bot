@@ -172,9 +172,8 @@ def test_zgame_convert_to_html(zgame):
 <div title="[For a closer description of something, EXAMINE it.]">
 <div class="location">Broken Top Boulevard, Outside No. 15 (in the black chevy)</div>
 <div class="score">Time:  2:26 pm</div>
-<pre>     MAKE IT GOOD
-        By Jon Ingold
-     -- Release 13 / Serial number 090921 / Inform v6.21 Library 6/10</pre>
+<p>&#160;  MAKE IT GOOD<br>&#160; &#160; &#160; By Jon Ingold</p>
+<p>&#160;  -- Release 13 / Serial number 090921 / Inform v6.21 Library 6/10</p>
 <p>The boulevard through the windscreen is lined with ash trees, thick trunks casting shadows and gnarled roots mangling up the sidewalk. You're sat in your car,
 parked too high up the kerb; just outside the gate to No. 15. Just an ordinary house. With a body inside.</p>
 <p>"Homicide. One Jack Draginam, accountant. Married, no kids. Stabbed. Yadda yadda, blah blah. We got the call from the maid - geez, who has a maid? Apparently
@@ -222,3 +221,24 @@ def test_zgame_start_make_it_good(zgame, room_id):
 
     base.Room.assert_called_with(client, event['room_id'])
     assert zgame.sessions == {event['room_id']: 'make-it-good'}
+
+def test_zgame_h2g2_list_convert(zgame):
+    data = """\
+ Bedroom                                                                                                                          Score: 0        Moves: 13
+
+You have:
+  a splitting headache
+  no tea
+  your gown (being worn)
+
+> """
+
+    html_data = zgame.convert_to_html(data, "test-room")
+    expected_html_data = """\
+<div>
+<div class="location">Bedroom</div>\n<div class="score">Score: 0        Moves: 13</div>
+<p>You have:<br>a splitting headache<br>no tea<br>your gown (being worn)</p>
+</div>
+"""
+
+    assert html_data == expected_html_data
