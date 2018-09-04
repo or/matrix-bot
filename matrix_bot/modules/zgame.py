@@ -236,7 +236,7 @@ class ZGameModule(MatrixBotModule):
         html_data = lxml.html.tostring(html, pretty_print=True).decode('utf-8')
         room_.send_html(html_data)
 
-    def zcontinue(self, event, game_id, overwrite, room_, user_):
+    def zcontinue(self, event, game_id, room_, user_):
         room_id = room_.room_id
         game = self.games[game_id]
 
