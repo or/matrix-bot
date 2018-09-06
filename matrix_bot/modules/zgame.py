@@ -317,6 +317,33 @@ class ZGameModule(MatrixBotModule):
             if s[i] != ' ':
                 return i
 
+    @staticmethod
+    def add_text(element, text):
+        children = element.getchildren()
+        if children:
+            last_element = children[-1]
+            if last_element.tail:
+                last_element.tail += '\n' + text
+            else:
+                last_element.tail = text
+
+        else:
+            if element.text:
+                element.text += '\n' + text
+            else:
+                element.text = text
+
+    @staticmethod
+    def remove_trailing_brs(element):
+        children = element.getchildren()
+        for child in children:
+            ZGameModule.remove_trailing_brs(child)
+
+        if children:
+            last_child = children[-1]
+            if last_child.tag == 'br' and not last_child.tail:
+                element.remove(last_child)
+
     def convert_to_html(self, data, room_id):
         if room_id not in self.status_line_cache:
             self.status_line_cache[room_id] = {}
@@ -360,14 +387,13 @@ class ZGameModule(MatrixBotModule):
         base_leading_spaces = min(self.count_leading_spaces(s) for s in lines if s.strip(". "))
 
         current = main_div
-        tail_element = None
         for raw_line in lines:
             line = raw_line.strip()
             if line == '.':
                 line = ''
 
-            clean_line = line.replace("<i>", "").replace("</i>", "").replace("<b>", "").replace("</b>", "")
-            if location and clean_line.startswith(location):
+            line_without_tags = re.sub(r'</?[bi]>', '', line)
+            if location and line_without_tags.startswith(location):
                 continue
 
             if line.startswith('[') and line.endswith(']'):
@@ -380,7 +406,6 @@ class ZGameModule(MatrixBotModule):
             if current.tag != 'p' or not line:
                 current = E.P()
                 main_div.append(current)
-                tail_element = None
 
             fixed_line = raw_line
             if base_leading_spaces > 0 and fixed_line.startswith(" " * base_leading_spaces):
@@ -388,29 +413,19 @@ class ZGameModule(MatrixBotModule):
 
             fixed_line = fixed_line.replace("  ", "\xa0 ")
 
-            if tail_element is not None:
-                if tail_element.tail:
-                    tail_element.tail += '\n' + fixed_line
-                else:
-                    tail_element.tail = fixed_line
-
-            else:
-                if current.text:
-                    current.text += '\n' + fixed_line
-                else:
-                    current.text = fixed_line
+            self.add_text(current, fixed_line)
 
             if fixed_line and len(fixed_line) < 50:
                 br = E.BR()
                 current.append(br)
-                tail_element = br
+
+        self.remove_trailing_brs(main_div)
 
         html_data = lxml.html.tostring(main_div, pretty_print=True).decode('utf-8')
         html_data = html_data.replace("&lt;i&gt;", '<i>')
         html_data = html_data.replace("&lt;/i&gt;", '</i>')
         html_data = html_data.replace("&lt;b&gt;", '<b>')
         html_data = html_data.replace("&lt;/b&gt;", '</b>')
-        html_data = html_data.replace("<br></p>", '</p>')
 
         return html_data
 
