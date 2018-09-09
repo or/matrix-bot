@@ -300,6 +300,19 @@ class ZGameModule(MatrixBotModule):
         return data
 
     @staticmethod
+    def read_stderr_from_process(process):
+        try:
+            data = os.read(process.stderr.fileno(), 100000)
+        except BlockingIOError:
+            return ''
+
+        data = data.decode('utf-8')
+        print('---stderr---')
+        print(data)
+        print('---stderr---')
+        return data
+
+    @staticmethod
     def escape_room_id(room_id):
         return re.sub(r'[^a-zA-Z0-9._-]', '_', room_id)
 
@@ -436,12 +449,22 @@ class ZGameModule(MatrixBotModule):
         self.status_line_cache[room_id].update(new_status_line_cache)
 
     def start_frotz(self, game):
-        p = Popen([self.executable, '-w', '100000', '-h', '100000', game['file']],
-                    stdout=PIPE, stdin=PIPE, stderr=PIPE)
+        command = [self.executable, '-w', '100000', '-h', '100000', game['file']]
+        print('running:', ' '.join(command))
+        p = Popen(command, stdout=PIPE, stdin=PIPE, stderr=PIPE)
 
         # set the O_NONBLOCK flag of p.stdout file descriptor:
-        flags = fcntl(p.stdout, F_GETFL) # get current p.stdout flags
-        fcntl(p.stdout, F_SETFL, flags | os.O_NONBLOCK)
+        flags = fcntl(p.stdout.fileno(), F_GETFL) # get current p.stdout flags
+        fcntl(p.stdout.fileno(), F_SETFL, flags | os.O_NONBLOCK)
+
+        # set the O_NONBLOCK flag of p.stderr file descriptor:
+        flags = fcntl(p.stderr.fileno(), F_GETFL) # get current p.stderr flags
+        fcntl(p.stderr.fileno(), F_SETFL, flags | os.O_NONBLOCK)
+
+        time.sleep(0.1)
+        data = self.read_stderr_from_process(p)
+        if data:
+            raise Exception(data)
 
         return p
 
