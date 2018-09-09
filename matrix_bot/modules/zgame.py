@@ -21,6 +21,8 @@ from matrix_client.room import Room
 from matrix_bot.modules.base import MatrixBotModule, arg, ValidationError
 
 class ZGameModule(MatrixBotModule):
+    COMMAND_PREFIX = '\\'
+
     @staticmethod
     def create(config):
         if 'zgame' in config:
@@ -46,6 +48,31 @@ class ZGameModule(MatrixBotModule):
         self.sessions = {}
         self.status_line_cache = {}
         self.load_sessions()
+        self.direct_mode = {}
+
+    def handle_room_message(self, client, event):
+        if super().handle_room_message(client, event):
+            return
+
+        content = event['content']
+        if content['msgtype'] != 'm.text':
+            return
+
+        room_id = event['room_id']
+        sender_id = event['sender']
+        command = content['body'].strip()
+        content = event['content']
+
+        if content['msgtype'] != 'm.text':
+            return
+
+        if command.startswith(self.COMMAND_PREFIX) or command.startswith('!'):
+            # let the normal zcommand handle it
+            return
+
+        if sender_id in self.direct_mode.get(room_id, set()):
+            room = Room(client, room_id)
+            self.zcommand(event, command, room_=room, user_=None)
 
     def register_commands(self):
         self.add_command(
@@ -98,7 +125,13 @@ class ZGameModule(MatrixBotModule):
             help="continue the last session of game <game-id> that was played, if there is one")
 
         self.add_command(
-            '\\',
+            '!zdirect',
+            arg('mode', self.validate_direct_mode),
+            callback=self.zdirect,
+            help="set direct mode for yourself to <on> or <off>, if it is on, then the '{}' prefix is not needed".format(self.COMMAND_PREFIX))
+
+        self.add_command(
+            self.COMMAND_PREFIX,
             arg('command', self.validate_command),
             callback=self.zcommand,
             prefix=True,
@@ -115,6 +148,10 @@ class ZGameModule(MatrixBotModule):
     def validate_overwrite(self, value):
         if value.lower() != 'overwrite':
             raise ValidationError("invalid value '{}', only 'overwrite' is accepted".format(value))
+
+    def validate_direct_mode(self, value):
+        if value.lower() not in ['on', 'off']:
+            raise ValidationError("invalid value '{}', only 'on' or 'off' are accepted".format(value))
 
     def validate_command(self, value):
         pass
@@ -254,6 +291,22 @@ class ZGameModule(MatrixBotModule):
         self.quit_game(p)
 
         room_.send_html(html_data)
+
+    def zdirect(self, event, mode, room_, user_):
+        room_id = room_.room_id
+        sender_id = event['sender']
+        if mode.lower() == 'on':
+            if room_id not in self.direct_mode:
+                self.direct_mode[room_id] = set()
+
+            self.direct_mode[room_id].add(sender_id)
+            room_.send_text("Direct mode enabled")
+
+        else:
+            if sender_id in self.direct_mode.get(room_id, set()):
+                self.direct_mode[room_id].remove(sender_id)
+
+            room_.send_text("Direct mode disabled, '{}' is required for commands".format(self.COMMAND_PREFIX))
 
     def zcommand(self, event, command, room_, user_):
         room_id = room_.room_id

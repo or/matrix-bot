@@ -2,7 +2,7 @@ import configparser
 import os
 import pytest
 
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 from . import zgame as zgame_module
 from matrix_bot.modules import base
@@ -242,3 +242,125 @@ You have:
 """
 
     assert html_data == expected_html_data
+
+def test_zgame_zdirect_on(zgame, room_id):
+    client = Mock()
+    user_id = '@thi:matrix.thialfihar.org'
+    command = '!zdirect on'
+    event = {
+        'origin_server_ts': 1535392295415,
+        'sender': user_id,
+        'event_id': '$15353922951493:matrix.thialfihar.org',
+        'unsigned': {'age': 23},
+        'content': {'body': command, 'msgtype': 'm.text'},
+        'type': 'm.room.message',
+        'room_id': room_id,
+    }
+
+    zgame.direct_mode = {}
+
+    room_mock = Mock()
+    room_mock.room_id = room_id
+    base.Room = Mock()
+    base.Room.return_value = room_mock
+    zgame.process(client, event)
+
+    assert zgame.direct_mode == {room_id: {user_id}}
+
+def test_zgame_zdirect_on(zgame, room_id):
+    client = Mock()
+    user_id = '@thi:matrix.thialfihar.org'
+    command = '!zdirect on'
+    event = {
+        'origin_server_ts': 1535392295415,
+        'sender': user_id,
+        'event_id': '$15353922951493:matrix.thialfihar.org',
+        'unsigned': {'age': 23},
+        'content': {'body': command, 'msgtype': 'm.text'},
+        'type': 'm.room.message',
+        'room_id': room_id,
+    }
+
+    zgame.direct_mode = {}
+
+    room_mock = Mock()
+    room_mock.room_id = room_id
+    base.Room = Mock()
+    base.Room.return_value = room_mock
+    zgame.process(client, event)
+
+    assert zgame.direct_mode == {room_id: {user_id}}
+def test_zgame_zdirect_off_1(zgame, room_id):
+    client = Mock()
+    user_id = '@thi:matrix.thialfihar.org'
+    command = '!zdirect off'
+    event = {
+        'origin_server_ts': 1535392295415,
+        'sender': user_id,
+        'event_id': '$15353922951493:matrix.thialfihar.org',
+        'unsigned': {'age': 23},
+        'content': {'body': command, 'msgtype': 'm.text'},
+        'type': 'm.room.message',
+        'room_id': room_id,
+    }
+
+    zgame.direct_mode = {}
+
+    room_mock = Mock()
+    room_mock.room_id = room_id
+    base.Room = Mock()
+    base.Room.return_value = room_mock
+    zgame.process(client, event)
+
+    assert zgame.direct_mode == {}
+
+def test_zgame_zdirect_off_2(zgame, room_id):
+    client = Mock()
+    user_id = '@thi:matrix.thialfihar.org'
+    command = '!zdirect off'
+    event = {
+        'origin_server_ts': 1535392295415,
+        'sender': user_id,
+        'event_id': '$15353922951493:matrix.thialfihar.org',
+        'unsigned': {'age': 23},
+        'content': {'body': command, 'msgtype': 'm.text'},
+        'type': 'm.room.message',
+        'room_id': room_id,
+    }
+
+    zgame.direct_mode = {room_id: {user_id}}
+
+    room_mock = Mock()
+    room_mock.room_id = room_id
+    base.Room = Mock()
+    base.Room.return_value = room_mock
+    zgame.process(client, event)
+
+    assert zgame.direct_mode == {room_id: set()}
+
+def test_zgame_room_message_direct_command(zgame, room_id):
+    client = Mock()
+    user_id = '@thi:matrix.thialfihar.org'
+    command = 'examine'
+    event = {
+        'origin_server_ts': 1535392295415,
+        'sender': user_id,
+        'event_id': '$15353922951493:matrix.thialfihar.org',
+        'unsigned': {'age': 23},
+        'content': {'body': command, 'msgtype': 'm.text'},
+        'type': 'm.room.message',
+        'room_id': room_id,
+    }
+
+    zgame.direct_mode = {room_id: user_id}
+
+    room_mock = Mock()
+    room_mock.room_id = room_id
+    base.Room = Mock()
+    base.Room.return_value = room_mock
+
+    zgame.zcommand = Mock()
+
+    zgame.process(client, event)
+
+    zgame.zcommand.assert_called_with(event, command, room_=ANY, user_=ANY)
