@@ -18,7 +18,7 @@ class GiphyModule(MatrixBotModule):
 
     def register_commands(self):
         self.add_command(
-            '!giphy', '!gif',
+            '!giphy',
             arg('search', self.validate_search, multi_word=True),
             callback=self.search_giphy,
             help="search giphy")
