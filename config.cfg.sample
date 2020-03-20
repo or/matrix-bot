@@ -10,3 +10,6 @@ api_key = GIPHY_API_KEY
 [google]
 api_key = GOOGLE_API_KEY
 cx = GOOGLE_CX
+
+[users]
+female =
