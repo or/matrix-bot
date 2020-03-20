@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 import json
-
 import logging
-
+import random
 import requests
 
 from matrix_client.room import Room
@@ -31,12 +30,12 @@ class GiphyModule(MatrixBotModule):
         search = search.replace(' ', '+')
         response = requests.get("https://api.giphy.com/v1/gifs/search",
                                 params=dict(api_key=self.config['giphy']['api_key'],
-                                            limit=1,
+                                            limit=100,
                                             lang='en',
                                             fmt='json',
                                             q=search))
         results = json.loads(response.content.decode('utf-8'))
-        match = results['data'][0]
+        match = random.choice(results['data'])
         title = match['title']
         url = match['images']['original']['url']
         height = match['images']['original']['height']
