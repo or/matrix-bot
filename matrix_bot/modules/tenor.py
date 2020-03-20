@@ -18,7 +18,7 @@ class TenorModule(MatrixBotModule):
 
     def register_commands(self):
         self.add_command(
-            '!tenor', '!ten', '!gif',
+            '!tenor', '!ten', '!gif', '.gif',
             arg('search', self.validate_search, multi_word=True),
             callback=self.search_tenor,
             help="search tenor")
