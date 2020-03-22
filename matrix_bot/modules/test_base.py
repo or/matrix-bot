@@ -90,10 +90,11 @@ def test_module_with_commands(TestModule):
     test_module = TestModule({})
     # TODO: test some more features
 
-def test_module_show_help(TestModule):
+async def test_module_show_help(TestModule):
     test_module = TestModule({})
     room = Mock()
-    test_module.show_help({}, room_=room, user_=None)
+    bot = Mock()
+    await test_module.show_help(bot=bot, event={}, room=room, user=None)
 
     expected_html = """\
 <div>
@@ -127,4 +128,4 @@ def test_module_show_help(TestModule):
 </table>
 </div>
 """
-    room.send_html.assert_called_with(expected_html)
+    bot.send_room_html.assert_called_with(bot, expected_html)

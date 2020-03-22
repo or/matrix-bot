@@ -3,8 +3,6 @@ import re
 
 from lxml.html import builder as E
 
-from matrix_client.room import Room
-
 class ValidationError(Exception):
     pass
 
@@ -39,7 +37,7 @@ class Command:
 
         return self.help.format(**arg_names)
 
-    def run(self, event, line, room_, user_):
+    async def run(self, bot, line, room, user, event):
         stripped_line = line.strip()
         if self.prefix:
             for alias in self.aliases:
@@ -52,7 +50,8 @@ class Command:
                 return False
 
             self.arguments[0].validator(stripped_line)
-            self.callback(event=event, room_=room_, user_=user_, **{self.arguments[0].get_variable_name() : stripped_line})
+            await self.callback(bot=bot, event=event, room=room, user=user,
+                                **{self.arguments[0].get_variable_name() : stripped_line})
             return
 
         words = stripped_line.split()
@@ -82,7 +81,7 @@ class Command:
 
             kwargs[arg.get_variable_name()] = value
 
-        self.callback(event=event, room_=room_, user_=user_, **kwargs)
+        await self.callback(bot=bot, event=event, room=room, user=user, **kwargs)
         return True
 
 
@@ -121,37 +120,30 @@ class MatrixBotModule:
     def register_commands(self):
         pass
 
-    def process(self, client, event):
-        self.client = client
-
-        if event['type'] == 'm.room.message':
-            return self.handle_room_message(client, event)
-
-    def handle_room_message(self, client, event):
-        room_id = event['room_id']
-        sender_id = event['sender']
-        content = event['content']
+    async def handle_room_message(self, bot, room, event):
+        room_id = room.room_id
+        sender_id = event.sender
+        content = event.source['content']
 
         if content['msgtype'] != 'm.text':
             return
 
         data = content['body']
-        room = Room(client, room_id)
 
         for command in self.commands:
             try:
-                if command.run(event=event, line=data, room_=room, user_=None):
+                if await command.run(bot=bot, event=event, line=data, room=room, user=None):
                     return True
 
             except ValidationError as e:
-                room.send_text(str(e))
+                await bot.send_room_text(room, str(e))
                 return True
 
 
     def add_command(self, *args, **kwargs):
         self.commands.append(Command(*args, **kwargs))
 
-    def show_help(self, event, room_, user_):
+    async def show_help(self, bot, room, user, event):
         table = E.TABLE(
             E.TR(
                 E.TH("command"),
@@ -174,4 +166,4 @@ class MatrixBotModule:
 
         html_data = lxml.html.tostring(html, pretty_print=True).decode('utf-8')
         print(html_data)
-        room_.send_html(html_data)
+        await bot.send_room_html(room, html_data)

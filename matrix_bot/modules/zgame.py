@@ -16,8 +16,6 @@ from fcntl import fcntl, F_GETFL, F_SETFL
 from lxml.html import builder as E
 from subprocess import Popen, PIPE, STDOUT
 
-from matrix_client.room import Room
-
 from matrix_bot.modules.base import MatrixBotModule, arg, ValidationError
 
 class ZGameModule(MatrixBotModule):
@@ -50,29 +48,26 @@ class ZGameModule(MatrixBotModule):
         self.load_sessions()
         self.direct_mode = {}
 
-    def handle_room_message(self, client, event):
-        if super().handle_room_message(client, event):
+    async def handle_room_message(self, bot, room, event):
+        print("here")
+        if await super().handle_room_message(bot=bot, room=room, event=event):
             return
+        print("here2")
 
-        content = event['content']
+        content = event.source['content']
         if content['msgtype'] != 'm.text':
             return
 
-        room_id = event['room_id']
-        sender_id = event['sender']
+        room_id = room.room_id
+        sender_id = event.sender
         command = content['body'].strip()
-        content = event['content']
-
-        if content['msgtype'] != 'm.text':
-            return
 
         if command.startswith(self.COMMAND_PREFIX) or command.startswith('!'):
             # let the normal zcommand handle it
             return
 
         if sender_id in self.direct_mode.get(room_id, set()):
-            room = Room(client, room_id)
-            self.zcommand(event, command, room_=room, user_=None)
+            self.zcommand(bot=bot, event=event, command=command, room=room, user=None)
 
     def register_commands(self):
         self.add_command(
@@ -156,17 +151,17 @@ class ZGameModule(MatrixBotModule):
     def validate_command(self, value):
         pass
 
-    def zlist(self, event, room_, user_):
+    async def zlist(self, bot, event, room, user):
         html = E.TABLE()
         html.append(E.TR(E.TH('id'), E.TH('name')))
         for unused_id, game in sorted(self.games.items(), key=lambda x: x[1]['name']):
             html.append(E.TR(E.TD(game['id']), E.TD(game['name'])))
 
         html_data = lxml.html.tostring(html, pretty_print=True).decode('utf-8')
-        room_.send_html(html_data)
+        await bot.send_room_html(room, html_data)
 
-    def zstart(self, event, game_id, room_, user_):
-        room_id = room_.room_id
+    async def zstart(self, bot, event, game_id, room, user):
+        room_id = room.room_id
         game = self.games[game_id]
 
         p = self.start_frotz(game)
@@ -178,10 +173,10 @@ class ZGameModule(MatrixBotModule):
         self.save_game(p, room_id, game_id)
         self.quit_game(p)
 
-        room_.send_html(html_data)
+        await bot.send_room_html(room, html_data)
 
-    def zsave(self, event, name, overwrite, room_, user_):
-        room_id = room_.room_id
+    async def zsave(self, bot, event, name, overwrite, room, user):
+        room_id = room.room_id
 
         if overwrite == 'overwrite':
             overwrite = True
@@ -189,31 +184,31 @@ class ZGameModule(MatrixBotModule):
             overwrite = False
 
         if room_id not in self.sessions:
-            room_.send_text("No session to save")
+            await bot.send_room_text(room, "No session to save")
 
         game_id = self.sessions[room_id]
         game = self.games[game_id]
 
         target_path = os.path.join(self.save_dir, ZGameModule.escape_room_id(room_id), game_id, name)
         if os.path.exists(target_path) and not overwrite:
-            room_.send_text("Save file '{}' exists, pick another one or specify 'overwrite' as last argument".format(name))
+            await bot.send_room_text(room, "Save file '{}' exists, pick another one or specify 'overwrite' as last argument".format(name))
             return
 
         os.makedirs(os.path.abspath(os.path.join(target_path, os.pardir)), exist_ok=True)
         shutil.copy(self.get_session_file(room_id, game_id), target_path)
-        room_.send_text("Saved to file '{}' for game '{}'".format(name, game_id))
+        await bot.send_room_text(room, "Saved to file '{}' for game '{}'".format(name, game_id))
 
-    def zload(self, event, game_id, name, room_, user_):
-        room_id = room_.room_id
+    async def zload(self, bot, event, game_id, name, room, user):
+        room_id = room.room_id
         game = self.games[game_id]
 
         if not re.match(r'^[a-zA-Z0-9-]+$', name):
-            room_.send_text("Filename '{}' should only contain a-z, A-Z, 0-9 or - ".format(name))
+            await bot.send_room_text(room, "Filename '{}' should only contain a-z, A-Z, 0-9 or - ".format(name))
             return
 
         target_path = os.path.join(self.save_dir, ZGameModule.escape_room_id(room_id), game_id, name)
         if not os.path.exists(target_path):
-            room_.send_text("Save file '{}' doesn't exist".format(name))
+            await bot.send_room_text(room, "Save file '{}' doesn't exist".format(name))
             return
 
         p = self.start_frotz(game)
@@ -221,7 +216,7 @@ class ZGameModule(MatrixBotModule):
         self.send_data_to_process(p, '\n')
         data = self.load_game(p, room_id, game_id, name)
         if data is None:
-            room_.send_text("No session found for game-id '{}'".format(game_id))
+            await bot.send_room_text(room, "No session found for game-id '{}'".format(game_id))
             return
 
         html_data = self.convert_to_html(data, room_id)
@@ -229,28 +224,30 @@ class ZGameModule(MatrixBotModule):
         self.save_game(p, room_id, game_id)
         self.quit_game(p)
 
-        room_.send_html(html_data)
+        await bot.send_room_html(room, html_data)
 
-    def zdownload(self, event, game_id, name, room_, user_):
-        room_id = room_.room_id
+    async def zdownload(self, bot, event, game_id, name, room, user):
+        room_id = room.room_id
         game = self.games[game_id]
 
         if not re.match(r'^[a-zA-Z0-9-]+$', name):
-            room_.send_text("Filename '{}' should only contain a-z, A-Z, 0-9 or - ".format(name))
+            await bot.send_room_text(room, "Filename '{}' should only contain a-z, A-Z, 0-9 or - ".format(name))
             return
 
         target_path = os.path.join(self.save_dir, ZGameModule.escape_room_id(room_id), game_id, name)
         if not os.path.exists(target_path):
-            room_.send_text("Save file '{}' doesn't exist".format(name))
+            await bot.send_room_text(room, "Save file '{}' doesn't exist".format(name))
             return
 
         file_url = self.client.upload(open(target_path, 'rb').read(), "application/octet-stream")
-        room_.send_file(url=file_url,
-                        name=game_id + '-' + name,
-                        mimetype="application/octet-stream")
+        await bot.send_room_file(
+            room=room,
+            url=file_url,
+            name=game_id + '-' + name,
+            mimetype="application/octet-stream")
 
-    def zlistsaves(self, event, game_id, room_, user_):
-        room_id = room_.room_id
+    async def zlistsaves(self, bot, event, game_id, room, user):
+        room_id = room.room_id
 
         specific_savegame_dir = os.path.join(self.save_dir, ZGameModule.escape_room_id(room_id), game_id)
         os.makedirs(specific_savegame_dir, exist_ok=True)
@@ -263,7 +260,7 @@ class ZGameModule(MatrixBotModule):
         filenames.sort(key=lambda x: x[1])
         html = E.TABLE()
         if not filenames:
-            room_.send_text("No savegames for '{}' in this room".format(game_id))
+            await bot.send_room_text(room, "No savegames for '{}' in this room".format(game_id))
             return
 
         for f, s in filenames:
@@ -271,10 +268,10 @@ class ZGameModule(MatrixBotModule):
             html.append(E.TR(E.TD(timestamp.isoformat(' ')), E.TD(f)))
 
         html_data = lxml.html.tostring(html, pretty_print=True).decode('utf-8')
-        room_.send_html(html_data)
+        await bot.send_room_html(room, html_data)
 
-    def zcontinue(self, event, game_id, room_, user_):
-        room_id = room_.room_id
+    async def zcontinue(self, bot, event, game_id, room, user):
+        room_id = room.room_id
         game = self.games[game_id]
 
         p = self.start_frotz(game)
@@ -282,7 +279,7 @@ class ZGameModule(MatrixBotModule):
         self.send_data_to_process(p, '\n')
         data = self.restore_game(p, room_id, game_id)
         if data is None:
-            room_.send_text("No session found for game-id '{}'".format(game_id))
+            await bot.send_room_text(room, "No session found for game-id '{}'".format(game_id))
             return
 
         html_data = self.convert_to_html(data, room_id)
@@ -290,29 +287,29 @@ class ZGameModule(MatrixBotModule):
         self.save_game(p, room_id, game_id)
         self.quit_game(p)
 
-        room_.send_html(html_data)
+        await bot.send_room_html(room, html_data)
 
-    def zdirect(self, event, mode, room_, user_):
-        room_id = room_.room_id
-        sender_id = event['sender']
+    async def zdirect(self, bot, event, mode, room, user):
+        room_id = room.room_id
+        sender_id = event.sender
         if mode.lower() == 'on':
             if room_id not in self.direct_mode:
                 self.direct_mode[room_id] = set()
 
             self.direct_mode[room_id].add(sender_id)
-            room_.send_text("Direct mode enabled")
+            await bot.send_room_text(room, "Direct mode enabled")
 
         else:
             if sender_id in self.direct_mode.get(room_id, set()):
                 self.direct_mode[room_id].remove(sender_id)
 
-            room_.send_text("Direct mode disabled, '{}' is required for commands".format(self.COMMAND_PREFIX))
+            await bot.send_room_text(room, "Direct mode disabled, '{}' is required for commands".format(self.COMMAND_PREFIX))
 
-    def zcommand(self, event, command, room_, user_):
-        room_id = room_.room_id
+    async def zcommand(self, bot, event, command, room, user):
+        room_id = room.room_id
 
         if room_id not in self.sessions:
-            room_.send_text("No active session, use !zstart to start a game")
+            await bot.send_room_text(room, room, "No active session, use !zstart to start a game")
             return
 
         game_id = self.sessions[room_id]
@@ -335,7 +332,7 @@ class ZGameModule(MatrixBotModule):
         self.save_game(p, room_id, game_id)
         self.quit_game(p)
 
-        room_.send_html(html_data)
+        await bot.send_room_html(room, html_data)
 
     # most things below this line probably can be refactored into a frotz module
 

@@ -3,8 +3,7 @@ import json
 import logging
 import random
 import requests
-
-from matrix_client.room import Room
+from io import BytesIO
 
 from matrix_bot.modules.base import MatrixBotModule, arg
 
@@ -26,7 +25,7 @@ class TenorModule(MatrixBotModule):
     def validate_search(self, value):
         pass
 
-    def search_tenor(self, event, search, room_, user_):
+    async def search_tenor(self, bot, event, search, room, user):
         search = search.replace(' ', '+')
         response = requests.get("https://api.tenor.com/v1/search",
                                 params=dict(api_key=self.config['tenor']['api_key'],
@@ -38,15 +37,15 @@ class TenorModule(MatrixBotModule):
         title = 'Sir'
         if ('users' in self.config
                 and 'female' in self.config['users']
-                and event['sender'] in self.config['users']['female'].split()):
+                and event.sender in self.config['users']['female'].split()):
             title = 'Miss'
 
         if 'results' not in results:
-            room_.send_text(f"It appears something went wrong, {title}.")
+            await bot.send_room_text(f"It appears something went wrong, {title}.")
             return
 
         if not results['results']:
-            room_.send_text(f"That doesn't exist, {title}.")
+            await bot.send_room_text(f"That doesn't exist, {title}.")
             return
 
         match = random.choice(results['results'])
@@ -57,10 +56,24 @@ class TenorModule(MatrixBotModule):
         size = match['media'][0]['gif']['size']
         image_response = requests.get(url)
         mimetype = image_response.headers.get('Content-Type')
-        image_url = self.client.upload(image_response.content, "image/gif")
-        room_.send_image(url=image_url,
-                         name=title,
-                         mimetype=mimetype,
-                         h=height,
-                         w=width,
-                         size=size)
+
+        def data_provider(_x, _y):
+            return BytesIO(image_response.content)
+
+        response, error = await bot.client.upload(data_provider,
+                                                  content_type="image/gif")
+        if error:
+            print(error)
+            await bot.send_room_text("Something went wrong.")
+            return
+
+        image_url = response.content_uri
+        await bot.send_room_image(
+            room,
+            url=image_url,
+            name=title,
+            extra=dict(
+                mimetype=mimetype,
+                h=height,
+                w=width,
+                size=size))

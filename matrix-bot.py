@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import asyncio
 import logging
 import configparser
 
@@ -10,4 +11,4 @@ if __name__ == '__main__':
     config.read('config.cfg')
 
     bot = MatrixBot(config)
-    bot.run()
+    asyncio.get_event_loop().run_until_complete(bot.run())

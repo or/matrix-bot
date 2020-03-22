@@ -2,7 +2,7 @@ import configparser
 import os
 import pytest
 
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import ANY, Mock, patch, AsyncMock
 
 from . import zgame as zgame_module
 from matrix_bot.modules import base
@@ -46,6 +46,28 @@ def zgame(zgame_config):
     return zgame_module.ZGameModule.create(zgame_config)
 
 
+@pytest.fixture
+def event():
+    event = AsyncMock()
+    event.sender = '@thi:matrix.thialfihar.org'
+    event.source = {
+        'content': {'body': '', 'msgtype': 'm.text'},
+    }
+
+    return event
+
+@pytest.fixture
+def bot():
+    return AsyncMock()
+
+
+@pytest.fixture
+def room(room_id):
+    room = AsyncMock()
+    room.room_id = room_id
+    return room
+
+
 def test_default_dfrotz_path(root_dir):
     dfrotz_path = zgame_module.ZGameModule.get_default_dfrotz_path()
     expected_path = os.path.abspath(os.path.join(root_dir, "bin/dfrotz"))
@@ -59,26 +81,12 @@ def test_zgame_config_parsing(zgame, root_dir):
     assert zgame.games['make-it-good']['file'] == os.path.join(root_dir, "test-data/MakeItGood.zblorb")
 
 
-def test_zgame_list(zgame, room_id):
-    client = Mock()
-    event = {
-        'origin_server_ts': 1535392295415,
-        'sender': '@thi:matrix.thialfihar.org',
-        'event_id': '$15353922951493:matrix.thialfihar.org',
-        'unsigned': {'age': 23},
-        'content': {'body': '!zlist', 'msgtype': 'm.text'},
-        'type': 'm.room.message',
-        'room_id': room_id,
-    }
+@pytest.mark.asyncio
+async def test_zgame_list(zgame, bot, room, event):
+    event.source['content']['body'] = '!zlist'
+    await zgame.handle_room_message(bot=bot, room=room, event=event)
 
-    room_mock = Mock()
-    room_mock.room_id = room_id
-    base.Room = Mock()
-    base.Room.return_value = room_mock
-    zgame.process(client, event)
-
-    base.Room.assert_called_with(client, event['room_id'])
-    room_mock.send_html.assert_called_with("""\
+    bot.send_room_html.assert_called_with(room, """\
 <table>
 <tr>
 <th>id</th>
@@ -100,48 +108,20 @@ def test_zgame_list(zgame, room_id):
 """)
 
 
-def test_zgame_start_without_game_id(zgame, room_id):
-    client = Mock()
-    event = {
-        'origin_server_ts': 1535392295415,
-        'sender': '@thi:matrix.thialfihar.org',
-        'event_id': '$15353922951493:matrix.thialfihar.org',
-        'unsigned': {'age': 23},
-        'content': {'body': '!zstart', 'msgtype': 'm.text'},
-        'type': 'm.room.message',
-        'room_id': room_id,
-    }
+@pytest.mark.asyncio
+async def test_zgame_start_without_game_id(zgame, bot, room, event):
+    event.source['content']['body'] = '!zstart'
+    await zgame.handle_room_message(bot=bot, room=room, event=event)
 
-    room_mock = Mock()
-    room_mock.room_id = room_id
-    base.Room = Mock()
-    base.Room.return_value = room_mock
-    zgame.process(client, event)
-
-    base.Room.assert_called_with(client, event['room_id'])
-    room_mock.send_text.assert_called_with("Missing argument 'game-id'")
+    bot.send_room_text.assert_called_with(room, "Missing argument 'game-id'")
 
 
-def test_zgame_start_with_unknown_game_id(zgame, room_id):
-    client = Mock()
-    event = {
-        'origin_server_ts': 1535392295415,
-        'sender': '@thi:matrix.thialfihar.org',
-        'event_id': '$15353922951493:matrix.thialfihar.org',
-        'unsigned': {'age': 23},
-        'content': {'body': '!zstart foobar', 'msgtype': 'm.text'},
-        'type': 'm.room.message',
-        'room_id': room_id,
-    }
+@pytest.mark.asyncio
+async def test_zgame_start_with_unknown_game_id(zgame, bot, room, event):
+    event.source['content']['body'] = '!zstart foobar'
+    await zgame.handle_room_message(bot=bot, room=room, event=event)
 
-    room_mock = Mock()
-    room_mock.room_id = room_id
-    base.Room = Mock()
-    base.Room.return_value = room_mock
-    zgame.process(client, event)
-
-    base.Room.assert_called_with(client, event['room_id'])
-    room_mock.send_text.assert_called_with("Bad argument 'game-id': Unknown game-id 'foobar'")
+    bot.send_room_text.assert_called_with(room, "Bad argument 'game-id': Unknown game-id 'foobar'")
 
 
 def test_zgame_convert_to_html(zgame):
@@ -199,28 +179,15 @@ You're not holding your gown.
     assert html_data == expected_html_data
 
 
-def test_zgame_start_make_it_good(zgame, room_id):
-    client = Mock()
-    event = {
-        'origin_server_ts': 1535392295415,
-        'sender': '@thi:matrix.thialfihar.org',
-        'event_id': '$15353922951493:matrix.thialfihar.org',
-        'unsigned': {'age': 23},
-        'content': {'body': '!zstart make-it-good', 'msgtype': 'm.text'},
-        'type': 'm.room.message',
-        'room_id': room_id,
-    }
-
+@pytest.mark.skip
+@pytest.mark.asyncio
+async def test_zgame_start_make_it_good(zgame, bot, room, event):
+    event.source['content']['body'] = '!zstart make-it-good'
     zgame.sessions = {}
 
-    room_mock = Mock()
-    room_mock.room_id = room_id
-    base.Room = Mock()
-    base.Room.return_value = room_mock
-    zgame.process(client, event)
+    await zgame.handle_room_message(bot=bot, room=room, event=event)
 
-    base.Room.assert_called_with(client, event['room_id'])
-    assert zgame.sessions == {event['room_id']: 'make-it-good'}
+    assert zgame.sessions == {room.room_id: 'make-it-good'}
 
 def test_zgame_h2g2_list_convert(zgame):
     data = """\
@@ -243,124 +210,48 @@ You have:
 
     assert html_data == expected_html_data
 
-def test_zgame_zdirect_on(zgame, room_id):
-    client = Mock()
-    user_id = '@thi:matrix.thialfihar.org'
-    command = '!zdirect on'
-    event = {
-        'origin_server_ts': 1535392295415,
-        'sender': user_id,
-        'event_id': '$15353922951493:matrix.thialfihar.org',
-        'unsigned': {'age': 23},
-        'content': {'body': command, 'msgtype': 'm.text'},
-        'type': 'm.room.message',
-        'room_id': room_id,
-    }
+
+@pytest.mark.asyncio
+async def test_zgame_zdirect_on(zgame, bot, room, event):
+    event.source['content']['body'] = '!zdirect on'
 
     zgame.direct_mode = {}
 
-    room_mock = Mock()
-    room_mock.room_id = room_id
-    base.Room = Mock()
-    base.Room.return_value = room_mock
-    zgame.process(client, event)
+    await zgame.handle_room_message(bot=bot, room=room, event=event)
 
-    assert zgame.direct_mode == {room_id: {user_id}}
+    assert zgame.direct_mode == {room.room_id: {event.sender}}
 
-def test_zgame_zdirect_on(zgame, room_id):
-    client = Mock()
-    user_id = '@thi:matrix.thialfihar.org'
-    command = '!zdirect on'
-    event = {
-        'origin_server_ts': 1535392295415,
-        'sender': user_id,
-        'event_id': '$15353922951493:matrix.thialfihar.org',
-        'unsigned': {'age': 23},
-        'content': {'body': command, 'msgtype': 'm.text'},
-        'type': 'm.room.message',
-        'room_id': room_id,
-    }
+
+@pytest.mark.asyncio
+async def test_zgame_zdirect_off_1(zgame, bot, room, event):
+    event.source['content']['body'] = '!zdirect off'
 
     zgame.direct_mode = {}
 
-    room_mock = Mock()
-    room_mock.room_id = room_id
-    base.Room = Mock()
-    base.Room.return_value = room_mock
-    zgame.process(client, event)
-
-    assert zgame.direct_mode == {room_id: {user_id}}
-def test_zgame_zdirect_off_1(zgame, room_id):
-    client = Mock()
-    user_id = '@thi:matrix.thialfihar.org'
-    command = '!zdirect off'
-    event = {
-        'origin_server_ts': 1535392295415,
-        'sender': user_id,
-        'event_id': '$15353922951493:matrix.thialfihar.org',
-        'unsigned': {'age': 23},
-        'content': {'body': command, 'msgtype': 'm.text'},
-        'type': 'm.room.message',
-        'room_id': room_id,
-    }
-
-    zgame.direct_mode = {}
-
-    room_mock = Mock()
-    room_mock.room_id = room_id
-    base.Room = Mock()
-    base.Room.return_value = room_mock
-    zgame.process(client, event)
+    await zgame.handle_room_message(bot=bot, room=room, event=event)
 
     assert zgame.direct_mode == {}
 
-def test_zgame_zdirect_off_2(zgame, room_id):
-    client = Mock()
-    user_id = '@thi:matrix.thialfihar.org'
-    command = '!zdirect off'
-    event = {
-        'origin_server_ts': 1535392295415,
-        'sender': user_id,
-        'event_id': '$15353922951493:matrix.thialfihar.org',
-        'unsigned': {'age': 23},
-        'content': {'body': command, 'msgtype': 'm.text'},
-        'type': 'm.room.message',
-        'room_id': room_id,
-    }
 
-    zgame.direct_mode = {room_id: {user_id}}
+@pytest.mark.asyncio
+async def test_zgame_zdirect_off_2(zgame, bot, room, event):
+    event.source['content']['body'] = '!zdirect off'
 
-    room_mock = Mock()
-    room_mock.room_id = room_id
-    base.Room = Mock()
-    base.Room.return_value = room_mock
-    zgame.process(client, event)
+    zgame.direct_mode = {room.room_id: {event.sender}}
 
-    assert zgame.direct_mode == {room_id: set()}
+    await zgame.handle_room_message(bot=bot, room=room, event=event)
 
-def test_zgame_room_message_direct_command(zgame, room_id):
-    client = Mock()
-    user_id = '@thi:matrix.thialfihar.org'
-    command = 'examine'
-    event = {
-        'origin_server_ts': 1535392295415,
-        'sender': user_id,
-        'event_id': '$15353922951493:matrix.thialfihar.org',
-        'unsigned': {'age': 23},
-        'content': {'body': command, 'msgtype': 'm.text'},
-        'type': 'm.room.message',
-        'room_id': room_id,
-    }
+    assert zgame.direct_mode == {room.room_id: set()}
 
-    zgame.direct_mode = {room_id: user_id}
 
-    room_mock = Mock()
-    room_mock.room_id = room_id
-    base.Room = Mock()
-    base.Room.return_value = room_mock
+@pytest.mark.asyncio
+async def test_zgame_room_message_direct_command(zgame, bot, room, event):
+    event.source['content']['body'] = 'examine'
 
-    zgame.zcommand = Mock()
+    zgame.direct_mode = {room.room_id: event.sender}
 
-    zgame.process(client, event)
+    zgame.zcommand = AsyncMock()
 
-    zgame.zcommand.assert_called_with(event, command, room_=ANY, user_=ANY)
+    await zgame.handle_room_message(bot=bot, room=room, event=event)
+
+    zgame.zcommand.assert_called_with(bot=bot, event=event, command='examine', room=ANY, user=ANY)

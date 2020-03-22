@@ -8,7 +8,6 @@ import logging
 import requests
 
 from bs4 import BeautifulSoup
-from matrix_client.room import Room
 
 from matrix_bot.modules.base import MatrixBotModule, arg
 

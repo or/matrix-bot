@@ -9,15 +9,14 @@ import re
 import sys
 import time
 import traceback
+from datetime import datetime
 
 import requests
 
 from lxml.html import builder as E
 
 from bs4 import BeautifulSoup
-from matrix_client.api import MatrixRequestError
-from matrix_client.client import MatrixClient
-from matrix_client.room import Room
+from nio import AsyncClient, MatrixRoom, InviteEvent, RoomMessageText
 
 from matrix_bot.modules.base import MatrixBotModule
 from matrix_bot import modules
@@ -44,47 +43,75 @@ class MatrixBot:
                 if m:
                     self.modules.append(m)
 
+    async def send_room_text(self, room, content):
+        self.client.room_send(
+            room_id=room.room_id,
+            message_type="m.room.message",
+            content={
+                "body": content,
+                "msgtype": "m.text"
+            })
 
-    def on_event(self, event):
-        print(event)
-        if event['type'] == 'm.room.message':
-            self.on_room_message(room_id=event['room_id'],
-                                 sender_id=event['sender'],
-                                 content=event['content'],
-                                 event=event)
+    async def send_room_html(self, room, content):
+        await self.client.room_send(
+            room_id=room.room_id,
+            message_type="m.room.message",
+            content={
+                "body": re.sub('<[^<]+?>', '', content),
+                "msgtype": "m.text",
+                "format": "org.matrix.custom.html",
+                "formatted_body": content,
+            })
+
+    async def send_room_content(self, room, msgtype, url, name, extra):
+        await self.client.room_send(
+            room_id=room.room_id,
+            message_type="m.room.message",
+            content={
+                "body": name,
+                "msgtype": msgtype,
+                "url": url,
+                "info": extra,
+            })
+
+    async def send_room_image(self, room, url, name, extra):
+        await self.send_room_content(room=room, msgtype="m.image", url=url, name=name, extra=extra)
+
+    async def send_room_file(self, room, url, name, extra):
+        await self.send_room_content(room=room, msgtype="m.file", url=url, name=name, extra=extra)
+
+    async def on_room_message(self, room, event):
+        if event.sender == self.user_id:
+            return
+
+        age = datetime.now().timestamp() * 1000 - event.server_timestamp
+        if age > 5000:
+            return
 
         for module in self.modules:
             try:
-                module.process(self.client, event)
+                await module.handle_room_message(self, room, event)
             except Exception as e:
-                room = Room(self.client, event['room_id'])
                 if self.debug:
                     msg = E.PRE(traceback.format_exc())
                     html_data = lxml.html.tostring(msg).decode('utf-8')
-                    room.send_html(html_data)
+                    await self.send_room_html(room=room, content=html_data)
                 else:
-                    room.send_text("There was an error.")
+                    await self.send_room_text(room=room, content="There was an error.")
 
-    def on_room_message(self, room_id, sender_id, content, event):
-        pass
-
-
-    def on_invite(self, room_id, event):
-        self.client.join_room(room_id)
+    async def on_invite(self, room, event):
+        self.client.join(room.room_id)
 
 
-    def run(self):
+    async def run(self):
         base_url = self.config['main']['base_url']
-        user_id = self.config['main']['user_id']
+        self.user_id = self.config['main']['user_id']
         password = self.config['main']['password']
         device_id = self.config['main']['device_id']
 
-        self.client = MatrixClient(base_url=base_url)
-        self.client.login(user_id, password, device_id=device_id)
+        self.client = AsyncClient(homeserver=base_url, user=self.user_id)
+        self.client.add_event_callback(self.on_invite, InviteEvent)
+        self.client.add_event_callback(self.on_room_message, RoomMessageText)
 
-        self.client.add_invite_listener(self.on_invite)
-        self.client.add_listener(self.on_event)
-        self.client.start_listener_thread()
-
-        while True:
-            time.sleep(0.5)
+        await self.client.login(password=password, device_name=device_id)
+        await self.client.sync_forever(timeout=30000)

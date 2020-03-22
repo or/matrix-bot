@@ -3,8 +3,7 @@ import json
 import logging
 import random
 import requests
-
-from matrix_client.room import Room
+from io import BytesIO
 
 from matrix_bot.modules.base import MatrixBotModule, arg
 
@@ -26,7 +25,7 @@ class GiphyModule(MatrixBotModule):
     def validate_search(self, value):
         pass
 
-    def search_giphy(self, event, search, room_, user_):
+    async def search_giphy(self, bot, event, search, room, user):
         search = search.replace(' ', '+')
         response = requests.get("https://api.giphy.com/v1/gifs/search",
                                 params=dict(api_key=self.config['giphy']['api_key'],
@@ -43,10 +42,23 @@ class GiphyModule(MatrixBotModule):
         size = match['images']['original']['size']
         image_response = requests.get(url)
         mimetype = image_response.headers.get('Content-Type')
-        image_url = self.client.upload(image_response.content, "image/gif")
-        room_.send_image(url=image_url,
-                         name=title,
-                         mimetype=mimetype,
-                         h=height,
-                         w=width,
-                         size=size)
+        def data_provider(_x, _y):
+            return BytesIO(image_response.content)
+
+        response, error = await bot.client.upload(data_provider,
+                                                  content_type="image/gif")
+        if error:
+            print(error)
+            await bot.send_room_text("Something went wrong.")
+            return
+
+        image_url = response.content_uri
+        await bot.send_room_image(
+            room,
+            url=image_url,
+            name=title,
+            extra=dict(
+                mimetype=mimetype,
+                h=height,
+                w=width,
+                size=size))
