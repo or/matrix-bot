@@ -2,7 +2,10 @@
 base_url = https://matrix.somewhere.org
 user_id = @bot:matrix.somewhere.org
 password = P4SSW0RD
-device_id = bot-config
+device_name = MatrixBot
+device_id = 0
+store_path = data/
+debug = False
 
 [giphy]
 api_key = GIPHY_API_KEY
@@ -10,6 +13,9 @@ api_key = GIPHY_API_KEY
 [google]
 api_key = GOOGLE_API_KEY
 cx = GOOGLE_CX
+
+[tenor]
+api_key = TENOR_API_KEY
 
 [users]
 female =
