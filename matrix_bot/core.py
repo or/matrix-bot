@@ -16,7 +16,7 @@ import requests
 from lxml.html import builder as E
 
 from bs4 import BeautifulSoup
-from nio import AsyncClient, MatrixRoom, InviteEvent, RoomMessageText
+from nio import AsyncClient, MatrixRoom, InviteEvent, RoomMessageText, ClientConfig
 
 from matrix_bot.modules.base import MatrixBotModule
 from matrix_bot import modules
@@ -44,7 +44,7 @@ class MatrixBot:
                     self.modules.append(m)
 
     async def send_room_text(self, room, content):
-        self.client.room_send(
+        await self.client.room_send(
             room_id=room.room_id,
             message_type="m.room.message",
             content={
@@ -81,11 +81,7 @@ class MatrixBot:
         await self.send_room_content(room=room, msgtype="m.file", url=url, name=name, extra=extra)
 
     async def on_room_message(self, room, event):
-        if event.sender == self.user_id:
-            return
-
-        age = datetime.now().timestamp() * 1000 - event.server_timestamp
-        if age > 5000:
+        if event.sender == self.client.user:
             return
 
         for module in self.modules:
@@ -104,14 +100,25 @@ class MatrixBot:
 
 
     async def run(self):
-        base_url = self.config['main']['base_url']
-        self.user_id = self.config['main']['user_id']
-        password = self.config['main']['password']
-        device_id = self.config['main']['device_id']
-
-        self.client = AsyncClient(homeserver=base_url, user=self.user_id)
+        client_config = ClientConfig(store_sync_tokens=True)
+        self.client = AsyncClient(
+            homeserver=self.config["main"]["base_url"],
+            user=self.config["main"]["user_id"],
+            device_id=self.config["main"]["device_id"],
+            store_path=self.config["main"]["store_path"],
+            config=client_config
+        )
         self.client.add_event_callback(self.on_invite, InviteEvent)
         self.client.add_event_callback(self.on_room_message, RoomMessageText)
 
-        await self.client.login(password=password, device_name=device_id)
-        await self.client.sync_forever(timeout=30000)
+        print("Logging in...")
+        status = await self.client.login(
+            self.config["main"]["password"],
+            device_name=self.config["main"]["device_name"]
+        )
+        if not self.client.logged_in:
+            print("Error logging in.")
+            return
+        print(f"Logged in as user {self.client.user_id}")
+
+        await self.client.sync_forever(timeout=30000, full_state=True)
