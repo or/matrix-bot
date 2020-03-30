@@ -2,10 +2,12 @@
 import json
 import logging
 import random
-import requests
 from io import BytesIO
 
+import requests
+
 from matrix_bot.modules.base import MatrixBotModule, arg
+
 
 class TenorModule(MatrixBotModule):
     @staticmethod

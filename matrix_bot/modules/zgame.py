@@ -2,21 +2,22 @@
 import html
 import json
 import logging
-import lxml.html
 import os
 import random
 import re
-import requests
 import shutil
 import string
 import time
-
 from datetime import datetime
-from fcntl import fcntl, F_GETFL, F_SETFL
-from lxml.html import builder as E
-from subprocess import Popen, PIPE, STDOUT
+from fcntl import F_GETFL, F_SETFL, fcntl
+from subprocess import PIPE, STDOUT, Popen
 
-from matrix_bot.modules.base import MatrixBotModule, arg, ValidationError
+import lxml.html
+import requests
+from lxml.html import builder as E
+
+from matrix_bot.modules.base import MatrixBotModule, ValidationError, arg
+
 
 class ZGameModule(MatrixBotModule):
     COMMAND_PREFIX = '\\'
@@ -49,10 +50,8 @@ class ZGameModule(MatrixBotModule):
         self.direct_mode = {}
 
     async def handle_room_message(self, bot, room, event):
-        print("here")
         if await super().handle_room_message(bot=bot, room=room, event=event):
             return
-        print("here2")
 
         content = event.source['content']
         if content['msgtype'] != 'm.text':

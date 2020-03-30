@@ -1,8 +1,9 @@
-import pytest
-
 from unittest.mock import Mock, patch
 
-from matrix_bot.modules.base import MatrixBotModule, arg, Command
+import pytest
+
+from matrix_bot.modules.base import Command, MatrixBotModule, arg
+
 
 @pytest.fixture
 def TestModule():

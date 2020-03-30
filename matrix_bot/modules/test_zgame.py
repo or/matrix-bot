@@ -1,11 +1,12 @@
 import configparser
 import os
+from unittest.mock import ANY, AsyncMock, Mock, patch
+
 import pytest
 
-from unittest.mock import ANY, Mock, patch, AsyncMock
+from matrix_bot.modules import base
 
 from . import zgame as zgame_module
-from matrix_bot.modules import base
 
 
 @pytest.fixture

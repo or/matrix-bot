@@ -1,7 +1,8 @@
-import lxml.html
 import re
 
+import lxml.html
 from lxml.html import builder as E
+
 
 class ValidationError(Exception):
     pass

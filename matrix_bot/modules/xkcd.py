@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 import json
+import logging
 import random
 import re
 
-import logging
-
 import requests
-
 from bs4 import BeautifulSoup
 
 from matrix_bot.modules.base import MatrixBotModule, arg
+
 
 class XkcdModule(MatrixBotModule):
     @staticmethod

@@ -1,25 +1,16 @@
 #!/usr/bin/env python3
-import configparser
 import inspect
-import json
-import logging
-import lxml.html
-import os.path
 import re
-import sys
-import time
 import traceback
 from datetime import datetime
 
-import requests
-
+import lxml.html
 from lxml.html import builder as E
+from nio import AsyncClient, ClientConfig, InviteEvent, RoomMessageText
 
-from bs4 import BeautifulSoup
-from nio import AsyncClient, MatrixRoom, InviteEvent, RoomMessageText, ClientConfig
-
-from matrix_bot.modules.base import MatrixBotModule
 from matrix_bot import modules
+from matrix_bot.modules.base import MatrixBotModule
+
 
 def read_base64_file(filename):
     """Read a base64 file, dropping any CR/LF characters"""
@@ -91,7 +82,7 @@ class MatrixBot:
         for module in self.modules:
             try:
                 await module.handle_room_message(self, room, event)
-            except Exception as e:
+            except Exception:
                 if self.debug:
                     msg = E.PRE(traceback.format_exc())
                     html_data = lxml.html.tostring(msg).decode('utf-8')
@@ -101,7 +92,6 @@ class MatrixBot:
 
     async def on_invite(self, room, event):
         self.client.join(room.room_id)
-
 
     async def run(self):
         client_config = ClientConfig(store_sync_tokens=True)
@@ -116,13 +106,15 @@ class MatrixBot:
         self.client.add_event_callback(self.on_room_message, RoomMessageText)
 
         print("Logging in...")
-        status = await self.client.login(
+        await self.client.login(
             self.config["main"]["password"],
             device_name=self.config["main"]["device_name"]
         )
+
         if not self.client.logged_in:
             print("Error logging in.")
             return
+
         print(f"Logged in as user {self.client.user_id}")
 
         await self.client.sync_forever(timeout=30000, full_state=True)
