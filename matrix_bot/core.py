@@ -84,6 +84,10 @@ class MatrixBot:
         if event.sender == self.client.user:
             return
 
+        age = datetime.now().timestamp() * 1000 - event.server_timestamp
+        if age > 5000:
+            return
+
         for module in self.modules:
             try:
                 await module.handle_room_message(self, room, event)
