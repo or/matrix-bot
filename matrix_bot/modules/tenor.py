@@ -41,11 +41,11 @@ class TenorModule(MatrixBotModule):
             addressing_title = 'Miss'
 
         if 'results' not in results:
-            await bot.send_room_text(f"It appears something went wrong, {addressing_title}.")
+            await bot.send_room_text(room, f"It appears something went wrong, {addressing_title}.")
             return
 
         if not results['results']:
-            await bot.send_room_text(f"That doesn't exist, {addressing_title}.")
+            await bot.send_room_text(room, f"That doesn't exist, {addressing_title}.")
             return
 
         match = random.choice(results['results'])
@@ -70,12 +70,12 @@ class TenorModule(MatrixBotModule):
                                                   content_type="image/gif")
         if error:
             print(error)
-            await bot.send_room_text(f"Something went wrong, {addressing_title}.")
+            await bot.send_room_text(room, f"Something went wrong, {addressing_title}.")
             return
 
         image_url = response.content_uri
         await bot.send_room_image(
-            room,
+            room=room,
             url=image_url,
             name=title + '.gif',
             extra=dict(

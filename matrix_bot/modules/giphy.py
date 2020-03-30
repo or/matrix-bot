@@ -49,7 +49,7 @@ class GiphyModule(MatrixBotModule):
                                                   content_type="image/gif")
         if error:
             print(error)
-            await bot.send_room_text("Something went wrong.")
+            await bot.send_room_text(room, "Something went wrong.")
             return
 
         image_url = response.content_uri
