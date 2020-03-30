@@ -34,28 +34,34 @@ class TenorModule(MatrixBotModule):
                                             q=search))
         results = json.loads(response.content.decode('utf-8'))
 
-        title = 'Sir'
+        addressing_title = 'Sir'
         if ('users' in self.config
                 and 'female' in self.config['users']
                 and event.sender in self.config['users']['female'].split()):
-            title = 'Miss'
+            addressing_title = 'Miss'
 
         if 'results' not in results:
-            await bot.send_room_text(f"It appears something went wrong, {title}.")
+            await bot.send_room_text(f"It appears something went wrong, {addressing_title}.")
             return
 
         if not results['results']:
-            await bot.send_room_text(f"That doesn't exist, {title}.")
+            await bot.send_room_text(f"That doesn't exist, {addressing_title}.")
             return
 
         match = random.choice(results['results'])
-        title = match['title']
         url = match['media'][0]['gif']['url']
         height = match['media'][0]['gif']['dims'][1]
         width = match['media'][0]['gif']['dims'][0]
         size = match['media'][0]['gif']['size']
         image_response = requests.get(url)
         mimetype = image_response.headers.get('Content-Type')
+
+        title = match['title'].strip()
+        if not title:
+            title = match['itemurl'].strip('/').split('/')[-1].rstrip('0123456789').rstrip('-')
+
+        if not title:
+            title = 'no-title'
 
         def data_provider(_x, _y):
             return BytesIO(image_response.content)
@@ -64,14 +70,14 @@ class TenorModule(MatrixBotModule):
                                                   content_type="image/gif")
         if error:
             print(error)
-            await bot.send_room_text("Something went wrong.")
+            await bot.send_room_text(f"Something went wrong, {addressing_title}.")
             return
 
         image_url = response.content_uri
         await bot.send_room_image(
             room,
             url=image_url,
-            name=title,
+            name=title + '.gif',
             extra=dict(
                 mimetype=mimetype,
                 h=height,

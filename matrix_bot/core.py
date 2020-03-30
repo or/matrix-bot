@@ -68,7 +68,7 @@ class MatrixBot:
             room_id=room.room_id,
             message_type="m.room.message",
             content={
-                "body": name,
+                "body": name or "no-title",
                 "msgtype": msgtype,
                 "url": url,
                 "info": extra,
