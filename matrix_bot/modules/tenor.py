@@ -44,22 +44,12 @@ class TenorModule(MatrixBotModule):
         )
         results = json.loads(response.content.decode("utf-8"))
 
-        addressing_title = "Sir"
-        if (
-            "users" in self.config
-            and "female" in self.config["users"]
-            and event.sender in self.config["users"]["female"].split()
-        ):
-            addressing_title = "Miss"
-
         if "results" not in results:
-            await bot.send_room_text(
-                room, f"It appears something went wrong, {addressing_title}."
-            )
+            await bot.send_room_text(room, "It appears something went wrong.")
             return
 
         if not results["results"]:
-            await bot.send_room_text(room, f"That doesn't exist, {addressing_title}.")
+            await bot.send_room_text(room, "That doesn't exist.")
             return
 
         match = random.choice(results["results"])
@@ -91,7 +81,7 @@ class TenorModule(MatrixBotModule):
         )
         if error:
             print(error)
-            await bot.send_room_text(room, f"Something went wrong, {addressing_title}.")
+            await bot.send_room_text(room, "Something went wrong.")
             return
 
         image_url = response.content_uri

@@ -16,6 +16,3 @@ cx = GOOGLE_CX
 
 [tenor]
 api_key = TENOR_API_KEY
-
-[users]
-female =
