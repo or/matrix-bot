@@ -3,7 +3,6 @@ google-api-python-client==1.7.4
 matrix-nio==0.24.0
 requests==2.18.4
 lxml==5.1.0
-peewee==3.13.2
 
 # testing
 watchdog==0.8.3
