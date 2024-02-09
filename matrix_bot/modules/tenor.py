@@ -12,64 +12,83 @@ from matrix_bot.modules.base import MatrixBotModule, arg
 class TenorModule(MatrixBotModule):
     @staticmethod
     def create(config):
-        if 'tenor' in config and 'api_key' in config['tenor']:
+        if "tenor" in config and "api_key" in config["tenor"]:
             return TenorModule(config)
 
         return None
 
     def register_commands(self):
         self.add_command(
-            '!tenor', '!ten', '!gif', '.gif',
-            arg('search', self.validate_search, multi_word=True),
+            "!tenor",
+            "!ten",
+            "!gif",
+            ".gif",
+            arg("search", self.validate_search, multi_word=True),
             callback=self.search_tenor,
-            help="search tenor")
+            help="search tenor",
+        )
 
     def validate_search(self, value):
         pass
 
     async def search_tenor(self, bot, event, search, room, user):
-        search = search.replace(' ', '+')
-        response = requests.get("https://api.tenor.com/v1/search",
-                                params=dict(api_key=self.config['tenor']['api_key'],
-                                            limit=20,
-                                            media_filter='minimal',
-                                            q=search))
-        results = json.loads(response.content.decode('utf-8'))
+        search = search.replace(" ", "+")
+        response = requests.get(
+            "https://api.tenor.com/v1/search",
+            params=dict(
+                api_key=self.config["tenor"]["api_key"],
+                limit=20,
+                media_filter="minimal",
+                q=search,
+            ),
+        )
+        results = json.loads(response.content.decode("utf-8"))
 
-        addressing_title = 'Sir'
-        if ('users' in self.config
-                and 'female' in self.config['users']
-                and event.sender in self.config['users']['female'].split()):
-            addressing_title = 'Miss'
+        addressing_title = "Sir"
+        if (
+            "users" in self.config
+            and "female" in self.config["users"]
+            and event.sender in self.config["users"]["female"].split()
+        ):
+            addressing_title = "Miss"
 
-        if 'results' not in results:
-            await bot.send_room_text(room, f"It appears something went wrong, {addressing_title}.")
+        if "results" not in results:
+            await bot.send_room_text(
+                room, f"It appears something went wrong, {addressing_title}."
+            )
             return
 
-        if not results['results']:
+        if not results["results"]:
             await bot.send_room_text(room, f"That doesn't exist, {addressing_title}.")
             return
 
-        match = random.choice(results['results'])
-        url = match['media'][0]['gif']['url']
-        height = match['media'][0]['gif']['dims'][1]
-        width = match['media'][0]['gif']['dims'][0]
-        size = match['media'][0]['gif']['size']
+        match = random.choice(results["results"])
+        url = match["media"][0]["gif"]["url"]
+        height = match["media"][0]["gif"]["dims"][1]
+        width = match["media"][0]["gif"]["dims"][0]
+        size = match["media"][0]["gif"]["size"]
         image_response = requests.get(url)
-        mimetype = image_response.headers.get('Content-Type')
+        mimetype = image_response.headers.get("Content-Type")
 
-        title = match['title'].strip()
+        title = match["title"].strip()
         if not title:
-            title = match['itemurl'].strip('/').split('/')[-1].rstrip('0123456789').rstrip('-')
+            title = (
+                match["itemurl"]
+                .strip("/")
+                .split("/")[-1]
+                .rstrip("0123456789")
+                .rstrip("-")
+            )
 
         if not title:
-            title = 'no-title'
+            title = "no-title"
 
         def data_provider(_x, _y):
             return BytesIO(image_response.content)
 
-        response, error = await bot.client.upload(data_provider,
-                                                  content_type="image/gif")
+        response, error = await bot.client.upload(
+            data_provider, content_type="image/gif"
+        )
         if error:
             print(error)
             await bot.send_room_text(room, f"Something went wrong, {addressing_title}.")
@@ -79,9 +98,6 @@ class TenorModule(MatrixBotModule):
         await bot.send_room_image(
             room=room,
             url=image_url,
-            name=title + '.gif',
-            extra=dict(
-                mimetype=mimetype,
-                h=height,
-                w=width,
-                size=size))
+            name=title + ".gif",
+            extra=dict(mimetype=mimetype, h=height, w=width, size=size),
+        )

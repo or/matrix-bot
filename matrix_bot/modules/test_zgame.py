@@ -13,14 +13,17 @@ from . import zgame as zgame_module
 def root_dir():
     return os.path.abspath(os.path.join(__file__, "../../.."))
 
+
 @pytest.fixture
 def room_id():
-    return '!test-room:matrix.thialfihar.org'
+    return "!test-room:matrix.thialfihar.org"
+
 
 @pytest.fixture
 def zgame_config(root_dir):
     config = configparser.ConfigParser()
-    config.read_string("""
+    config.read_string(
+        """
 [zgame]
 session_dir = {root}/test-data/zgame-sessions
 save_dir = {root}/test-data/zgame-savegames
@@ -37,7 +40,10 @@ file = {root}/test-data/anchor.z8
 [zgame/h2g2]
 name = Hitchhiker's Guide To The Galaxy
 file = {root}/test-data/hhgg.z3
- """.format(root=root_dir))
+ """.format(
+            root=root_dir
+        )
+    )
 
     return config
 
@@ -50,12 +56,13 @@ def zgame(zgame_config):
 @pytest.fixture
 def event():
     event = AsyncMock()
-    event.sender = '@thi:matrix.thialfihar.org'
+    event.sender = "@thi:matrix.thialfihar.org"
     event.source = {
-        'content': {'body': '', 'msgtype': 'm.text'},
+        "content": {"body": "", "msgtype": "m.text"},
     }
 
     return event
+
 
 @pytest.fixture
 def bot():
@@ -76,18 +83,22 @@ def test_default_dfrotz_path(root_dir):
 
 
 def test_zgame_config_parsing(zgame, root_dir):
-    assert set(zgame.games.keys()) == {'make-it-good', 'anchor', 'h2g2'}
+    assert set(zgame.games.keys()) == {"make-it-good", "anchor", "h2g2"}
 
-    assert zgame.games['make-it-good']['name'] == "Make It Good"
-    assert zgame.games['make-it-good']['file'] == os.path.join(root_dir, "test-data/MakeItGood.zblorb")
+    assert zgame.games["make-it-good"]["name"] == "Make It Good"
+    assert zgame.games["make-it-good"]["file"] == os.path.join(
+        root_dir, "test-data/MakeItGood.zblorb"
+    )
 
 
 @pytest.mark.asyncio
 async def test_zgame_list(zgame, bot, room, event):
-    event.source['content']['body'] = '!zlist'
+    event.source["content"]["body"] = "!zlist"
     await zgame.handle_room_message(bot=bot, room=room, event=event)
 
-    bot.send_room_html.assert_called_with(room, """\
+    bot.send_room_html.assert_called_with(
+        room,
+        """\
 <table>
 <tr>
 <th>id</th>
@@ -106,12 +117,13 @@ async def test_zgame_list(zgame, bot, room, event):
 <td>Make It Good</td>
 </tr>
 </table>
-""")
+""",
+    )
 
 
 @pytest.mark.asyncio
 async def test_zgame_start_without_game_id(zgame, bot, room, event):
-    event.source['content']['body'] = '!zstart'
+    event.source["content"]["body"] = "!zstart"
     await zgame.handle_room_message(bot=bot, room=room, event=event)
 
     bot.send_room_text.assert_called_with(room, "Missing argument 'game-id'")
@@ -119,10 +131,12 @@ async def test_zgame_start_without_game_id(zgame, bot, room, event):
 
 @pytest.mark.asyncio
 async def test_zgame_start_with_unknown_game_id(zgame, bot, room, event):
-    event.source['content']['body'] = '!zstart foobar'
+    event.source["content"]["body"] = "!zstart foobar"
     await zgame.handle_room_message(bot=bot, room=room, event=event)
 
-    bot.send_room_text.assert_called_with(room, "Bad argument 'game-id': Unknown game-id 'foobar'")
+    bot.send_room_text.assert_called_with(
+        room, "Bad argument 'game-id': Unknown game-id 'foobar'"
+    )
 
 
 def test_zgame_convert_to_html(zgame):
@@ -183,12 +197,13 @@ You're not holding your gown.
 @pytest.mark.skip
 @pytest.mark.asyncio
 async def test_zgame_start_make_it_good(zgame, bot, room, event):
-    event.source['content']['body'] = '!zstart make-it-good'
+    event.source["content"]["body"] = "!zstart make-it-good"
     zgame.sessions = {}
 
     await zgame.handle_room_message(bot=bot, room=room, event=event)
 
-    assert zgame.sessions == {room.room_id: 'make-it-good'}
+    assert zgame.sessions == {room.room_id: "make-it-good"}
+
 
 def test_zgame_h2g2_list_convert(zgame):
     data = """\
@@ -214,7 +229,7 @@ You have:
 
 @pytest.mark.asyncio
 async def test_zgame_zdirect_on(zgame, bot, room, event):
-    event.source['content']['body'] = '!zdirect on'
+    event.source["content"]["body"] = "!zdirect on"
 
     zgame.direct_mode = {}
 
@@ -225,7 +240,7 @@ async def test_zgame_zdirect_on(zgame, bot, room, event):
 
 @pytest.mark.asyncio
 async def test_zgame_zdirect_off_1(zgame, bot, room, event):
-    event.source['content']['body'] = '!zdirect off'
+    event.source["content"]["body"] = "!zdirect off"
 
     zgame.direct_mode = {}
 
@@ -236,7 +251,7 @@ async def test_zgame_zdirect_off_1(zgame, bot, room, event):
 
 @pytest.mark.asyncio
 async def test_zgame_zdirect_off_2(zgame, bot, room, event):
-    event.source['content']['body'] = '!zdirect off'
+    event.source["content"]["body"] = "!zdirect off"
 
     zgame.direct_mode = {room.room_id: {event.sender}}
 
@@ -247,7 +262,7 @@ async def test_zgame_zdirect_off_2(zgame, bot, room, event):
 
 @pytest.mark.asyncio
 async def test_zgame_room_message_direct_command(zgame, bot, room, event):
-    event.source['content']['body'] = 'examine'
+    event.source["content"]["body"] = "examine"
 
     zgame.direct_mode = {room.room_id: event.sender}
 
@@ -255,4 +270,6 @@ async def test_zgame_room_message_direct_command(zgame, bot, room, event):
 
     await zgame.handle_room_message(bot=bot, room=room, event=event)
 
-    zgame.zcommand.assert_called_with(bot=bot, event=event, command='examine', room=ANY, user=ANY)
+    zgame.zcommand.assert_called_with(
+        bot=bot, event=event, command="examine", room=ANY, user=ANY
+    )

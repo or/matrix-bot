@@ -22,7 +22,7 @@ class MatrixBot:
     def __init__(self, config):
         self.config = config
         self.modules = []
-        if self.config['main'].get('debug', '').lower() == 'true':
+        if self.config["main"].get("debug", "").lower() == "true":
             self.debug = True
         else:
             self.debug = False
@@ -38,21 +38,20 @@ class MatrixBot:
         await self.client.room_send(
             room_id=room.room_id,
             message_type="m.room.message",
-            content={
-                "body": content,
-                "msgtype": "m.text"
-            })
+            content={"body": content, "msgtype": "m.text"},
+        )
 
     async def send_room_html(self, room, content):
         await self.client.room_send(
             room_id=room.room_id,
             message_type="m.room.message",
             content={
-                "body": re.sub('<[^<]+?>', '', content),
+                "body": re.sub("<[^<]+?>", "", content),
                 "msgtype": "m.text",
                 "format": "org.matrix.custom.html",
                 "formatted_body": content,
-            })
+            },
+        )
 
     async def send_room_content(self, room, msgtype, url, name, extra):
         await self.client.room_send(
@@ -63,13 +62,18 @@ class MatrixBot:
                 "msgtype": msgtype,
                 "url": url,
                 "info": extra,
-            })
+            },
+        )
 
     async def send_room_image(self, room, url, name, extra):
-        await self.send_room_content(room=room, msgtype="m.image", url=url, name=name, extra=extra)
+        await self.send_room_content(
+            room=room, msgtype="m.image", url=url, name=name, extra=extra
+        )
 
     async def send_room_file(self, room, url, name, extra):
-        await self.send_room_content(room=room, msgtype="m.file", url=url, name=name, extra=extra)
+        await self.send_room_content(
+            room=room, msgtype="m.file", url=url, name=name, extra=extra
+        )
 
     async def on_room_message(self, room, event):
         if event.sender == self.client.user:
@@ -85,7 +89,7 @@ class MatrixBot:
             except Exception:
                 if self.debug:
                     msg = E.PRE(traceback.format_exc())
-                    html_data = lxml.html.tostring(msg).decode('utf-8')
+                    html_data = lxml.html.tostring(msg).decode("utf-8")
                     await self.send_room_html(room=room, content=html_data)
                 else:
                     await self.send_room_text(room=room, content="There was an error.")
@@ -100,7 +104,7 @@ class MatrixBot:
             user=self.config["main"]["user_id"],
             device_id=self.config["main"]["device_id"],
             store_path=self.config["main"]["store_path"],
-            config=client_config
+            config=client_config,
         )
         self.client.add_event_callback(self.on_invite, InviteEvent)
         self.client.add_event_callback(self.on_room_message, RoomMessageText)
@@ -108,7 +112,7 @@ class MatrixBot:
         print("Logging in...")
         await self.client.login(
             self.config["main"]["password"],
-            device_name=self.config["main"]["device_name"]
+            device_name=self.config["main"]["device_name"],
         )
 
         if not self.client.logged_in:
