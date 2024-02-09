@@ -2,6 +2,8 @@ beautifulsoup4==4.6.0
 google-api-python-client==1.7.4
 matrix-nio==0.24.0
 requests==2.31.0
+# needed for requests, otherwise there's an error because collections moved to collections.abc
+urllib3==2.2.0
 lxml==5.1.0
 
 # testing
